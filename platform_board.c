@@ -44,6 +44,9 @@ static pthread_mutex_t audio_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int dsp_fd = -1;
 static pthread_t audio_thread_id;
 static int ui_volume = 80;
+static int key_mix_volume = 80;
+static int bgm_mix_volume = 75;
+static float bgm_base_volume = 1.0f;
 
 static int file_exists(const char * path)
 {
@@ -260,6 +263,22 @@ void platform_audio_set_volume(int volume)
     ui_volume = volume;
 }
 
+void platform_audio_set_mix_volumes(int key_volume, int bgm_volume)
+{
+    if(key_volume < 0) key_volume = 0;
+    if(key_volume > 100) key_volume = 100;
+    if(bgm_volume < 0) bgm_volume = 0;
+    if(bgm_volume > 100) bgm_volume = 100;
+    key_mix_volume = key_volume;
+    bgm_mix_volume = bgm_volume;
+
+    pthread_mutex_lock(&audio_mutex);
+    if(audio_channels[0].is_playing && audio_channels[0].wav == &bgm_wav) {
+        audio_channels[0].volume = bgm_base_volume * (bgm_mix_volume / 100.0f);
+    }
+    pthread_mutex_unlock(&audio_mutex);
+}
+
 static void play_sound_on_channel(int ch_idx, hardware_wav_t * wav, float vol)
 {
     if(!wav || !wav->data) return;
@@ -286,15 +305,16 @@ void platform_audio_play_key(int key_idx)
     pthread_mutex_unlock(&audio_mutex);
 
     if(found_ch == -1) found_ch = 1;
-    play_sound_on_channel(found_ch, &key_wavs[key_idx], 1.0f);
+    play_sound_on_channel(found_ch, &key_wavs[key_idx], key_mix_volume / 100.0f);
 }
 
 void platform_audio_play_bgm(const char * path, float volume)
 {
     if(path == NULL || path[0] == '\0') return;
     platform_audio_clear_bgm();
+    bgm_base_volume = volume;
     bgm_wav = load_wav_into_ram(path);
-    play_sound_on_channel(0, &bgm_wav, volume);
+    play_sound_on_channel(0, &bgm_wav, bgm_base_volume * (bgm_mix_volume / 100.0f));
 }
 
 void platform_audio_stop_bgm(void)
@@ -308,4 +328,5 @@ void platform_audio_clear_bgm(void)
 {
     platform_audio_stop_bgm();
     free_wav(&bgm_wav);
+    bgm_base_volume = 1.0f;
 }

@@ -267,13 +267,15 @@ static void save_hidden_items(const char * path, char hidden_items[][128], int h
 }
 
 static void load_manage_state(void) {
-    load_hidden_items("guided_hidden.cfg", hidden_guided_items, &hidden_guided_count);
-    load_hidden_items("records_hidden.cfg", hidden_record_items, &hidden_record_count);
+    mkdir("config", 0777);
+    load_hidden_items("config/guided_hidden.cfg", hidden_guided_items, &hidden_guided_count);
+    load_hidden_items("config/records_hidden.cfg", hidden_record_items, &hidden_record_count);
 }
 
 static void save_manage_state(void) {
-    save_hidden_items("guided_hidden.cfg", hidden_guided_items, hidden_guided_count);
-    save_hidden_items("records_hidden.cfg", hidden_record_items, hidden_record_count);
+    mkdir("config", 0777);
+    save_hidden_items("config/guided_hidden.cfg", hidden_guided_items, hidden_guided_count);
+    save_hidden_items("config/records_hidden.cfg", hidden_record_items, hidden_record_count);
 }
 
 extern void create_piano_ui(void);
@@ -679,18 +681,24 @@ static int current_app_mode = 0; // 0: FREE, 1: GUIDED, 2: AUTO, 3: RECORD
 static int game_score = 0;
 static int game_combo = 0;
 static int game_max_combo = 0;
-static int game_time_ms = -2000; 
+static int game_time_ms = -4000; 
 static uint32_t game_last_tick = 0;
 static int game_bgm_started = 0;
 static lv_timer_t * game_timer = NULL;
 static lv_obj_t * lbl_score = NULL;
 static lv_obj_t * lbl_combo = NULL;
 static lv_obj_t * track_container = NULL;
+static lv_obj_t * guided_countdown_label = NULL;
+static lv_obj_t * guided_judgement_label = NULL;
+static int guided_countdown_stage = -1;
 static lv_obj_t * guided_finish_overlay = NULL;
 static lv_obj_t * guided_finish_popup = NULL;
 
 static ActiveNote active_notes[50];
 static int next_note_idx = 0;
+
+#define GUIDED_COUNTDOWN_MS 4000
+#define GUIDED_SONG_START_OFFSET_MS 1000
 
 static const SongNote map_two_tigers[] = {
     {0, 1000}, {1, 1500}, {2, 2000}, {0, 2500},
@@ -746,6 +754,7 @@ static const char * find_song_title(const char * filename) {
 
 static const SongNote * current_song_map = empty_map;
 static char current_song_title[128] = "跟弹学习";
+static char current_song_filename[128] = "";
 
 // ================= Recording & AutoPlay =================
 #define MAX_RECORD_NOTES 1024
@@ -789,11 +798,14 @@ static void create_record_selection_ui(void);
 static void stop_recording_cb(lv_event_t * e);
 static void record_toggle_cb(lv_event_t * e);
 static void show_guided_finish_popup(void);
+static void show_auto_finish_popup(void);
 static void start_auto_play_from_record(const char * filename);
 static void close_auto_finish_popup(void);
 static void close_guided_finish_popup(void);
 static void restart_guided_song(void);
 static void restart_auto_play_current(void);
+static void guided_finish_popup_delay_cb(lv_timer_t * timer);
+static void auto_finish_popup_delay_cb(lv_timer_t * timer);
 static void close_manage_popup(void);
 static void show_manage_home_popup(void);
 static void show_manage_list_popup(manage_kind_t kind);
@@ -801,10 +813,12 @@ static void show_manage_list_popup(manage_kind_t kind);
 extern void create_login_ui(void);
 
 // ================= Volume Control =================
-static int ui_volume = 80;
-static int current_vol_db = -10; // (80 - 100) / 2
+static int piano_mix_volume = 80;
+static int bgm_mix_volume = 75;
 
-static lv_obj_t * vol_slider = NULL;
+static lv_obj_t * vol_panel = NULL;
+static lv_obj_t * vol_slider_piano = NULL;
+static lv_obj_t * vol_slider_bgm = NULL;
 static lv_obj_t * vol_icon = NULL;
 
 // ================= Hardware Audio Mixer =================
@@ -1106,20 +1120,156 @@ static void update_score_ui() {
     if(lbl_score) lv_label_set_text_fmt(lbl_score, "Score: %d    Combo: %d", game_score, game_combo);
 }
 
+static void guided_countdown_rotation_anim_cb(void * var, int32_t v) {
+    lv_obj_set_style_transform_rotation((lv_obj_t *)var, v, 0);
+}
+
+static void guided_countdown_zoom_anim_cb(void * var, int32_t v) {
+    lv_obj_set_style_transform_zoom((lv_obj_t *)var, v, 0);
+}
+
+static void guided_hit_note_delete_cb(lv_timer_t * timer) {
+    lv_obj_t * note_obj = (lv_obj_t *)lv_timer_get_user_data(timer);
+    if(note_obj) lv_obj_delete(note_obj);
+    lv_timer_delete(timer);
+}
+
+static void guided_hide_judgement_cb(lv_timer_t * timer) {
+    LV_UNUSED(timer);
+    if(guided_judgement_label) lv_obj_add_flag(guided_judgement_label, LV_OBJ_FLAG_HIDDEN);
+    lv_timer_delete(timer);
+}
+
+static void show_guided_judgement(int is_perfect) {
+    if(guided_judgement_label == NULL) return;
+
+    lv_label_set_text(guided_judgement_label, is_perfect ? "Perfect" : "Good");
+    lv_obj_set_style_text_color(guided_judgement_label,
+                                lv_color_hex(is_perfect ? 0x166534 : 0xFACC15), 0);
+    lv_obj_set_style_transform_zoom(guided_judgement_label, is_perfect ? 320 : 280, 0);
+    lv_obj_clear_flag(guided_judgement_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_align(guided_judgement_label, LV_ALIGN_CENTER, 0, 74);
+    lv_timer_create(guided_hide_judgement_cb, 260, NULL);
+}
+
+static void guided_finish_popup_delay_cb(lv_timer_t * timer) {
+    LV_UNUSED(timer);
+    show_guided_finish_popup();
+    lv_timer_delete(timer);
+}
+
+static void auto_finish_popup_delay_cb(lv_timer_t * timer) {
+    LV_UNUSED(timer);
+    show_auto_finish_popup();
+    lv_timer_delete(timer);
+}
+
+static int try_guided_hit_for_key(int key_idx, int guided_song_time_ms) {
+    for(int j = 0; j < 50; j++) {
+        if(active_notes[j].is_active && active_notes[j].target_key == key_idx) {
+            int diff = guided_song_time_ms - active_notes[j].hit_time_ms;
+            if(diff >= -260 && diff <= 260) {
+                int is_perfect = (diff >= -90 && diff <= 90);
+                game_score += 10;
+                game_combo += 1;
+                if(game_combo > game_max_combo) game_max_combo = game_combo;
+
+                lv_obj_set_style_bg_color(active_notes[j].obj,
+                                          lv_color_hex(is_perfect ? 0x166534 : 0xFACC15), 0);
+                show_guided_judgement(is_perfect);
+                lv_timer_create(guided_hit_note_delete_cb, 120, active_notes[j].obj);
+                active_notes[j].is_active = 0;
+                update_score_ui();
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+static int has_blocking_popup(void) {
+    return guided_finish_popup != NULL ||
+           auto_finish_popup != NULL ||
+           manage_popup != NULL;
+}
+
+static void update_guided_countdown_prompt(void) {
+    static const char * texts[] = {"3", "2", "1", "开始"};
+    static const uint32_t colors[] = {0x22C55E, 0xEAB308, 0xF97316, 0xEF4444};
+    int stage = -1;
+
+    if(game_time_ms < -3000) stage = 0;
+    else if(game_time_ms < -2000) stage = 1;
+    else if(game_time_ms < -1000) stage = 2;
+    else if(game_time_ms < 0) stage = 3;
+
+    if(guided_countdown_label == NULL) return;
+
+    if(stage < 0) {
+        lv_obj_add_flag(guided_countdown_label, LV_OBJ_FLAG_HIDDEN);
+        guided_countdown_stage = -1;
+        return;
+    }
+
+    if(stage == guided_countdown_stage) return;
+    guided_countdown_stage = stage;
+
+    lv_label_set_text(guided_countdown_label, texts[stage]);
+    lv_obj_set_style_text_color(guided_countdown_label, lv_color_hex(colors[stage]), 0);
+    lv_obj_set_style_text_font(guided_countdown_label, &my_font_full, 0);
+    lv_obj_set_style_transform_zoom(guided_countdown_label, 260, 0);
+    lv_obj_set_style_transform_rotation(guided_countdown_label, 0, 0);
+    lv_obj_set_style_transform_pivot_x(guided_countdown_label, 0, 0);
+    lv_obj_set_style_transform_pivot_y(guided_countdown_label, 0, 0);
+    lv_obj_clear_flag(guided_countdown_label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_align(guided_countdown_label, LV_ALIGN_CENTER, 0, 24);
+
+    lv_anim_t zoom_anim;
+    lv_anim_init(&zoom_anim);
+    lv_anim_set_var(&zoom_anim, guided_countdown_label);
+    lv_anim_set_values(&zoom_anim, 260, 520);
+    lv_anim_set_time(&zoom_anim, 420);
+    lv_anim_set_playback_time(&zoom_anim, 420);
+    lv_anim_set_path_cb(&zoom_anim, lv_anim_path_ease_in_out);
+    lv_anim_set_exec_cb(&zoom_anim, guided_countdown_zoom_anim_cb);
+    lv_anim_start(&zoom_anim);
+
+    lv_anim_t shake_anim;
+    lv_anim_init(&shake_anim);
+    lv_anim_set_var(&shake_anim, guided_countdown_label);
+    lv_anim_set_values(&shake_anim, -120, 120);
+    lv_anim_set_time(&shake_anim, 120);
+    lv_anim_set_playback_time(&shake_anim, 120);
+    lv_anim_set_repeat_count(&shake_anim, 2);
+    lv_anim_set_path_cb(&shake_anim, lv_anim_path_ease_in_out);
+    lv_anim_set_exec_cb(&shake_anim, guided_countdown_rotation_anim_cb);
+    lv_anim_start(&shake_anim);
+}
+
 static void game_timer_cb(lv_timer_t * timer) {
     LV_UNUSED(timer);
     uint32_t current_tick = lv_tick_get();
     uint32_t dt = current_tick - game_last_tick;
     game_last_tick = current_tick;
     int has_active_notes = 0;
+    int song_time_ms = 0;
 
     // 回退：移除底层强同步，恢复简单的视觉计时。并且彻底移除伴奏播放。
     game_time_ms += dt;
+    update_guided_countdown_prompt();
+    song_time_ms = game_time_ms - GUIDED_SONG_START_OFFSET_MS;
+
+    if(!game_bgm_started && current_song_filename[0] != '\0' && song_time_ms >= -500) {
+        char bgm_path[192];
+        snprintf(bgm_path, sizeof(bgm_path), "music/%s", current_song_filename);
+        platform_audio_play_bgm(bgm_path, 0.75f);
+        game_bgm_started = 1;
+    }
 
     // 1. Spawning logic (修改为提前 2000ms 生成，放慢一倍的掉落速度！)
     while(current_song_map && current_song_map[next_note_idx].key_idx != -1) {
         int spawn_time = current_song_map[next_note_idx].hit_time_ms - 2000;
-        if(game_time_ms >= spawn_time) {
+        if(song_time_ms >= spawn_time) {
             for(int i=0; i<50; i++) {
                 if(!active_notes[i].is_active) {
                     active_notes[i].is_active = 1;
@@ -1158,12 +1308,12 @@ static void game_timer_cb(lv_timer_t * timer) {
     for(int i=0; i<50; i++) {
         if(active_notes[i].is_active) {
             has_active_notes = 1;
-            int time_alive = game_time_ms - (active_notes[i].hit_time_ms - 2000);
+            int time_alive = song_time_ms - (active_notes[i].hit_time_ms - 2000);
             int y = time_alive * 272 / 2000; // 降低速度：2秒钟从 0 掉落到 272
             lv_obj_set_y(active_notes[i].obj, y);
             
             // 如果掉出了屏幕还没被打中（Miss判定）
-            if(y > 300) { 
+            if(y > 320) { 
                 lv_obj_delete(active_notes[i].obj);
                 active_notes[i].is_active = 0;
                 game_combo = 0;
@@ -1179,7 +1329,8 @@ static void game_timer_cb(lv_timer_t * timer) {
             lv_timer_delete(game_timer);
             game_timer = NULL;
         }
-        show_guided_finish_popup();
+        platform_audio_stop_bgm();
+        lv_timer_create(guided_finish_popup_delay_cb, 500, NULL);
     }
 }
 
@@ -1188,6 +1339,19 @@ static void game_timer_cb(lv_timer_t * timer) {
 static void piano_scan_timer_cb(lv_timer_t * timer) {
     int hits[19] = {0};
     const platform_touch_point_t * touch_points = platform_get_touch_points();
+
+    LV_UNUSED(timer);
+
+    if(has_blocking_popup()) {
+        for(int k = 0; k < 19; k++) {
+            if(piano_keys[k] == NULL) continue;
+            if(key_is_playing[k]) {
+                key_is_playing[k] = 0;
+                lv_obj_remove_state(piano_keys[k], LV_STATE_PRESSED);
+            }
+        }
+        return;
+    }
     
     // 我们遍历单个手指的落点
     for(int i=0; i<PLATFORM_MAX_TOUCH; i++) {
@@ -1231,26 +1395,12 @@ static void piano_scan_timer_cb(lv_timer_t * timer) {
                     record_note_count++;
                 }
             } else if(current_app_mode == 1) { // Guided learning mode
-                // 打击判定 (Hit Detection) 窗口为目标时间点前后 200ms 内
-                int hit_matched = 0;
-                for(int j=0; j<50; j++) {
-                    if(active_notes[j].is_active && active_notes[j].target_key == k) {
-                        int diff = game_time_ms - active_notes[j].hit_time_ms;
-                        if(diff >= -200 && diff <= 200) {
-                            hit_matched = 1;
-                            game_score += 10;
-                            game_combo += 1;
-                            if(game_combo > game_max_combo) game_max_combo = game_combo;
-                            
-                            // 消除该音符
-                            lv_obj_delete(active_notes[j].obj);
-                            active_notes[j].is_active = 0;
-                            update_score_ui();
-                            break; // 每次敲击一帧只判定消除一个符块
-                        }
-                    }
-                }
+                int guided_song_time_ms = game_time_ms - GUIDED_SONG_START_OFFSET_MS;
+                (void)try_guided_hit_for_key(k, guided_song_time_ms);
             }
+        } else if(hits[k] && current_app_mode == 1) {
+            int guided_song_time_ms = game_time_ms - GUIDED_SONG_START_OFFSET_MS;
+            (void)try_guided_hit_for_key(k, guided_song_time_ms);
         } else if(!hits[k] && key_is_playing[k]) {
             // 这个键被所有手指松开或者手指滑出了它的范围（完美实现自动回弹）
             key_is_playing[k] = 0;
@@ -1259,30 +1409,29 @@ static void piano_scan_timer_cb(lv_timer_t * timer) {
     }
 }
 
+static void update_volume_icon_state(void) {
+    int max_volume = (current_app_mode == 1 && piano_mix_volume < bgm_mix_volume) ? bgm_mix_volume : piano_mix_volume;
+    if(max_volume == 0) lv_label_set_text(vol_icon, LV_SYMBOL_MUTE);
+    else if(max_volume < 50) lv_label_set_text(vol_icon, LV_SYMBOL_VOLUME_MID);
+    else lv_label_set_text(vol_icon, LV_SYMBOL_VOLUME_MAX);
+}
+
 static void vol_slider_event_cb(lv_event_t * e) {
     lv_obj_t * slider = lv_event_get_target(e);
-    ui_volume = lv_slider_get_value(slider);
-    platform_audio_set_volume(ui_volume);
-    
-    if(ui_volume == 0) {
-        lv_label_set_text(vol_icon, LV_SYMBOL_MUTE);
-        current_vol_db = -175; // 完全静音
-    } else {
-        if(ui_volume < 50) {
-            lv_label_set_text(vol_icon, LV_SYMBOL_VOLUME_MID);
-        } else {
-            lv_label_set_text(vol_icon, LV_SYMBOL_VOLUME_MAX);
-        }
-        // 将 1~100 的音量百分比映射为 madplay 的负分贝衰减：-49 dB ~ 0 dB
-        current_vol_db = (ui_volume - 100) / 2;
-    }
+
+    if(slider == vol_slider_piano) piano_mix_volume = lv_slider_get_value(slider);
+    else if(slider == vol_slider_bgm) bgm_mix_volume = lv_slider_get_value(slider);
+
+    platform_audio_set_mix_volumes(piano_mix_volume, bgm_mix_volume);
+    update_volume_icon_state();
 }
 
 static void vol_icon_event_cb(lv_event_t * e) {
-    if(lv_obj_has_flag(vol_slider, LV_OBJ_FLAG_HIDDEN)) {
-        lv_obj_remove_flag(vol_slider, LV_OBJ_FLAG_HIDDEN);
+    LV_UNUSED(e);
+    if(lv_obj_has_flag(vol_panel, LV_OBJ_FLAG_HIDDEN)) {
+        lv_obj_remove_flag(vol_panel, LV_OBJ_FLAG_HIDDEN);
     } else {
-        lv_obj_add_flag(vol_slider, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(vol_panel, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
@@ -1335,6 +1484,7 @@ static void song_start_cb(lv_event_t * e) {
     const char * filename = (const char *)lv_event_get_user_data(e);
     if(filename) {
         current_song_map = empty_map;
+        snprintf(current_song_filename, sizeof(current_song_filename), "%s", filename);
         snprintf(current_song_title, sizeof(current_song_title), "%s", filename);
         for(int i=0; song_db[i].filename; i++) {
             if(strcmp(song_db[i].filename, filename) == 0) {
@@ -1707,6 +1857,9 @@ void create_main_menu_ui(void) {
 void create_piano_ui(void) {
     memset(piano_keys, 0, sizeof(piano_keys));
     memset(key_is_playing, 0, sizeof(key_is_playing));
+    guided_countdown_label = NULL;
+    guided_judgement_label = NULL;
+    guided_countdown_stage = -1;
 
     piano_win = lv_obj_create(lv_screen_active());
     lv_obj_set_size(piano_win, 800, 480);
@@ -1779,14 +1932,52 @@ void create_piano_ui(void) {
     lv_obj_set_style_text_font(vol_icon, lv_theme_get_font_normal(NULL), 0); // 确保符号正常渲染
     lv_obj_center(vol_icon); // 居中在大按钮内部
 
-    // Volume Slider (修改为横向并弹出在左侧)
-    vol_slider = lv_slider_create(scr);
-    lv_slider_set_range(vol_slider, 0, 100);
-    lv_slider_set_value(vol_slider, 80, LV_ANIM_OFF); 
-    lv_obj_set_size(vol_slider, 120, 15); // 恢复秀气修长的小滑条尺寸
-    lv_obj_align_to(vol_slider, vol_btn, LV_ALIGN_OUT_LEFT_MID, -10, 0); // 依靠大按钮左侧展开
-    lv_obj_add_event_cb(vol_slider, vol_slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
-    lv_obj_add_flag(vol_slider, LV_OBJ_FLAG_HIDDEN);
+    vol_panel = lv_obj_create(scr);
+    lv_obj_set_size(vol_panel, 170, current_app_mode == 1 ? 106 : 62);
+    lv_obj_align_to(vol_panel, vol_btn, LV_ALIGN_OUT_LEFT_TOP, -16, 0);
+    lv_obj_set_style_bg_color(vol_panel, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(vol_panel, 200, 0);
+    lv_obj_set_style_border_width(vol_panel, 1, 0);
+    lv_obj_set_style_border_color(vol_panel, lv_color_hex(0xe6faf6), 0);
+    lv_obj_set_style_radius(vol_panel, 18, 0);
+    lv_obj_set_style_shadow_color(vol_panel, lv_color_hex(0x7ab8b0), 0);
+    lv_obj_set_style_shadow_opa(vol_panel, 75, 0);
+    lv_obj_set_style_shadow_width(vol_panel, 20, 0);
+    lv_obj_set_style_pad_all(vol_panel, 10, 0);
+    lv_obj_remove_flag(vol_panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(vol_panel, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t * lbl_piano = lv_label_create(vol_panel);
+    lv_label_set_text(lbl_piano, "钢琴");
+    lv_obj_set_style_text_font(lbl_piano, &my_font_full, 0);
+    lv_obj_set_style_text_color(lbl_piano, lv_color_hex(COLOR_SUBTITLE), 0);
+    lv_obj_align(lbl_piano, LV_ALIGN_TOP_LEFT, 8, 8);
+
+    vol_slider_piano = lv_slider_create(vol_panel);
+    lv_slider_set_range(vol_slider_piano, 0, 100);
+    lv_slider_set_value(vol_slider_piano, piano_mix_volume, LV_ANIM_OFF);
+    lv_obj_set_size(vol_slider_piano, 96, 14);
+    lv_obj_align(vol_slider_piano, LV_ALIGN_TOP_RIGHT, -8, 10);
+    lv_obj_add_event_cb(vol_slider_piano, vol_slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    vol_slider_bgm = NULL;
+    if(current_app_mode == 1) {
+        lv_obj_t * lbl_bgm = lv_label_create(vol_panel);
+        lv_label_set_text(lbl_bgm, "伴奏");
+        lv_obj_set_style_text_font(lbl_bgm, &my_font_full, 0);
+        lv_obj_set_style_text_color(lbl_bgm, lv_color_hex(COLOR_SUBTITLE), 0);
+        lv_obj_align(lbl_bgm, LV_ALIGN_TOP_LEFT, 8, 54);
+
+        vol_slider_bgm = lv_slider_create(vol_panel);
+        lv_slider_set_range(vol_slider_bgm, 0, 100);
+        lv_slider_set_value(vol_slider_bgm, bgm_mix_volume, LV_ANIM_OFF);
+        lv_obj_set_size(vol_slider_bgm, 96, 14);
+        lv_obj_align(vol_slider_bgm, LV_ALIGN_TOP_RIGHT, -8, 56);
+        lv_obj_add_event_cb(vol_slider_bgm, vol_slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    }
+
+    platform_audio_set_mix_volumes(piano_mix_volume, bgm_mix_volume);
+    update_volume_icon_state();
 
     // ==== 打击游戏 UI 注入 ====
     if(current_app_mode == 1) {
@@ -1804,27 +1995,42 @@ void create_piano_ui(void) {
         lv_obj_set_style_text_font(lbl_score, &my_font_full, 0);
         lv_obj_align(lbl_score, LV_ALIGN_TOP_MID, 0, 92);
         lbl_combo = NULL;
+
+        guided_countdown_label = lv_label_create(track_container);
+        lv_obj_set_style_text_font(guided_countdown_label, &my_font_full, 0);
+        lv_obj_set_style_text_color(guided_countdown_label, lv_color_hex(0x22C55E), 0);
+        lv_obj_align(guided_countdown_label, LV_ALIGN_CENTER, 0, 24);
+        lv_label_set_text(guided_countdown_label, "");
+        guided_countdown_stage = -1;
+
+        guided_judgement_label = lv_label_create(track_container);
+        lv_obj_set_style_text_font(guided_judgement_label, &my_font_full, 0);
+        lv_obj_set_style_text_color(guided_judgement_label, lv_color_hex(0x166534), 0);
+        lv_obj_align(guided_judgement_label, LV_ALIGN_CENTER, 0, 74);
+        lv_label_set_text(guided_judgement_label, "");
+        lv_obj_add_flag(guided_judgement_label, LV_OBJ_FLAG_HIDDEN);
         
         game_score = 0; game_combo = 0; game_max_combo = 0;
-        game_time_ms = -2000;
+        game_time_ms = -GUIDED_COUNTDOWN_MS;
         game_bgm_started = 0;
         game_last_tick = lv_tick_get();
         next_note_idx = 0;
         memset(active_notes, 0, sizeof(active_notes));
         update_score_ui();
+        update_guided_countdown_prompt();
         
         // 按用户要求：彻底移除读取和播放伴奏的逻辑，仅保留音符下落和弹奏的交响音
         platform_audio_stop_bgm();
         usleep(50000);
         platform_audio_clear_bgm();
 
-        game_timer = lv_timer_create(game_timer_cb, 20, NULL);
+        game_timer = lv_timer_create(game_timer_cb, 10, NULL);
         
         // 修复顶部控件被音轨区遮挡的问题，提到最上层图层
         lv_obj_move_foreground(btn_back);
         lv_obj_move_foreground(title);
         lv_obj_move_foreground(vol_btn);
-        lv_obj_move_foreground(vol_slider);
+        lv_obj_move_foreground(vol_panel);
     }
 
     // Piano container
@@ -1839,7 +2045,7 @@ void create_piano_ui(void) {
     
     // 【核心改造】：抛弃不稳定的系统事件系统，使用后台极速轮询监听所有 5 个落点，无缝跨越任意琴键和多点触发。
     // 这将立刻解决“不回弹”以及“多点触控失灵”的问题。
-    piano_timer = lv_timer_create(piano_scan_timer_cb, 20, NULL);
+    piano_timer = lv_timer_create(piano_scan_timer_cb, 10, NULL);
     
     // We will create basic white and black keys layout
     const int white_keys_count = 10;
@@ -1941,7 +2147,7 @@ static void auto_play_timer_cb(lv_timer_t * t) {
             if(lbl_auto_status) {
                 lv_label_set_text(lbl_auto_status, "演奏结束");
             }
-            show_auto_finish_popup();
+            lv_timer_create(auto_finish_popup_delay_cb, 500, NULL);
         }
     }
 }
