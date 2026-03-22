@@ -1210,13 +1210,13 @@ void create_piano_ui(void) {
 
         game_timer = lv_timer_create(game_timer_cb, 20, NULL);
         
-        // 游戏模式下隐藏自由演奏专用的标题和音量控件，防止遮挡音轨
+        // 游戏模式下隐藏标题，避免遮挡音轨
         lv_obj_add_flag(title, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(vol_btn, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(vol_slider, LV_OBJ_FLAG_HIDDEN);
         
-        // 修复返回按钮被音轨区遮挡的问题，提到最上层图层
+        // 修复顶部控件被音轨区遮挡的问题，提到最上层图层
         lv_obj_move_foreground(btn_back);
+        lv_obj_move_foreground(vol_btn);
+        lv_obj_move_foreground(vol_slider);
     }
 
     // Piano container
