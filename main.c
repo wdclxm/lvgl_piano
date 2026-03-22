@@ -148,6 +148,15 @@ static lv_obj_t * create_back_button(lv_obj_t * parent, lv_event_cb_t cb) {
     return btn;
 }
 
+static void apply_title_visual(lv_obj_t * label, lv_color_t color) {
+    lv_obj_set_style_text_color(label, color, 0);
+    lv_obj_set_style_text_font(label, &my_font_full, 0);
+    lv_obj_set_style_transform_zoom(label, 320, 0);
+    lv_obj_set_style_transform_pivot_x(label, 0, 0);
+    lv_obj_set_style_transform_pivot_y(label, 0, 0);
+    lv_obj_set_style_pad_all(label, 6, 0);
+}
+
 static void set_page_title(lv_obj_t * label, page_title_t title_kind) {
     const char * text = "";
     switch(title_kind) {
@@ -164,8 +173,7 @@ static void set_page_title(lv_obj_t * label, page_title_t title_kind) {
     }
 
     lv_label_set_text(label, text);
-    lv_obj_set_style_text_color(label, lv_color_hex(0x23424a), 0);
-    lv_obj_set_style_text_font(label, &my_font_full, 0);
+    apply_title_visual(label, lv_color_hex(0x23424a));
     lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 20);
 }
 
@@ -219,6 +227,56 @@ static void close_err_cb(lv_event_t * e) {
     lv_obj_delete(popup);
 }
 
+static lv_obj_t * create_modal_overlay(void) {
+    lv_obj_t * overlay = lv_obj_create(lv_screen_active());
+    lv_obj_remove_style_all(overlay);
+    lv_obj_set_size(overlay, 800, 480);
+    lv_obj_center(overlay);
+    lv_obj_set_style_bg_color(overlay, lv_color_hex(0xb7d6d1), 0);
+    lv_obj_set_style_bg_opa(overlay, 150, 0);
+    lv_obj_remove_flag(overlay, LV_OBJ_FLAG_SCROLLABLE);
+    return overlay;
+}
+
+static lv_obj_t * create_modal_card(lv_obj_t * parent, lv_coord_t w, lv_coord_t h) {
+    lv_obj_t * card = lv_obj_create(parent);
+    lv_obj_set_size(card, w, h);
+    lv_obj_center(card);
+    lv_obj_set_style_bg_color(card, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(card, 242, 0);
+    lv_obj_set_style_radius(card, 24, 0);
+    lv_obj_set_style_border_color(card, lv_color_hex(0xe8fbf7), 0);
+    lv_obj_set_style_border_width(card, 1, 0);
+    lv_obj_set_style_shadow_color(card, lv_color_hex(0x7ab8b0), 0);
+    lv_obj_set_style_shadow_opa(card, 95, 0);
+    lv_obj_set_style_shadow_width(card, 32, 0);
+    lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+    return card;
+}
+
+static void show_auth_popup(const char * message) {
+    lv_obj_t * overlay = create_modal_overlay();
+    lv_obj_t * popup = create_modal_card(overlay, 400, 210);
+
+    lv_obj_t * label = lv_label_create(popup);
+    lv_label_set_text(label, message);
+    lv_obj_set_style_text_font(label, &my_font_full, 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(0x23424a), 0);
+    lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 42);
+
+    lv_obj_t * btn = lv_button_create(popup);
+    lv_obj_set_size(btn, 120, 44);
+    lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -24);
+    apply_glass_button_style(btn);
+    lv_obj_add_event_cb(btn, close_err_cb, LV_EVENT_CLICKED, overlay);
+
+    lv_obj_t * blabel = lv_label_create(btn);
+    lv_label_set_text(blabel, "关闭");
+    lv_obj_set_style_text_font(blabel, &my_font_full, 0);
+    lv_obj_set_style_text_color(blabel, lv_color_hex(0x1f4f55), 0);
+    lv_obj_center(blabel);
+}
+
 static void login_btn_cb(lv_event_t * e) {
     intptr_t action = (intptr_t)lv_event_get_user_data(e);
     const char * u = lv_textarea_get_text(ta_user);
@@ -233,37 +291,14 @@ static void login_btn_cb(lv_event_t * e) {
             if(kb) { lv_obj_delete(kb); kb = NULL; }
             create_main_menu_ui();
         } else {
-            // 这里替换掉原来干巴巴的 printf，弹出一个优雅的报错窗
-            lv_obj_t * popup = lv_obj_create(lv_screen_active());
-            lv_obj_set_size(popup, 400, 200);
-            lv_obj_center(popup);
-            lv_obj_set_style_bg_color(popup, lv_color_hex(0x222222), 0);
-            lv_obj_set_style_border_color(popup, lv_color_hex(0xff3333), 0); // 红框警告
-            lv_obj_set_style_border_width(popup, 2, 0);
-            
-            lv_obj_t * label = lv_label_create(popup);
-            lv_label_set_text(label, "登录失败，账号或密码错误！");
-            lv_obj_set_style_text_font(label, &my_font_full, 0); // 必加的中文全量字库
-            lv_obj_set_style_text_color(label, lv_color_white(), 0);
-            lv_obj_align(label, LV_ALIGN_CENTER, 0, -20);
-            
-            lv_obj_t * btn = lv_button_create(popup);
-            lv_obj_set_size(btn, 100, 40);
-            lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -10);
-            apply_glass_button_style(btn);
-            lv_obj_add_event_cb(btn, close_err_cb, LV_EVENT_CLICKED, popup);
-            
-            lv_obj_t * blabel = lv_label_create(btn);
-            lv_label_set_text(blabel, "关闭");
-            lv_obj_set_style_text_font(blabel, &my_font_full, 0);
-            lv_obj_set_style_text_color(blabel, lv_color_hex(0x1f4f55), 0);
-            lv_obj_center(blabel);
+            show_auth_popup("登录失败，账号或密码错误！");
         }
     } else if(action == 2) { // Register
         if(register_user(u, p)) {
             printf("[Register] Success: %s\n", u);
         } else {
             printf("[Register] Failed: User %s may already exist.\n", u);
+            show_auth_popup("注册失败，用户名已存在！");
         }
     }
 }
@@ -356,6 +391,8 @@ static lv_timer_t * game_timer = NULL;
 static lv_obj_t * lbl_score = NULL;
 static lv_obj_t * lbl_combo = NULL;
 static lv_obj_t * track_container = NULL;
+static lv_obj_t * guided_finish_overlay = NULL;
+static lv_obj_t * guided_finish_popup = NULL;
 
 static ActiveNote active_notes[50];
 static int next_note_idx = 0;
@@ -444,6 +481,7 @@ static void create_naming_ui(void);
 static void create_record_selection_ui(void);
 static void stop_recording_cb(lv_event_t * e);
 static void record_toggle_cb(lv_event_t * e);
+static void show_guided_finish_popup(void);
 
 extern void create_login_ui(void);
 
@@ -755,9 +793,11 @@ static void update_score_ui() {
 }
 
 static void game_timer_cb(lv_timer_t * timer) {
+    LV_UNUSED(timer);
     uint32_t current_tick = lv_tick_get();
     uint32_t dt = current_tick - game_last_tick;
     game_last_tick = current_tick;
+    int has_active_notes = 0;
 
     // 回退：移除底层强同步，恢复简单的视觉计时。并且彻底移除伴奏播放。
     game_time_ms += dt;
@@ -803,6 +843,7 @@ static void game_timer_cb(lv_timer_t * timer) {
     // 2. Movement logic
     for(int i=0; i<50; i++) {
         if(active_notes[i].is_active) {
+            has_active_notes = 1;
             int time_alive = game_time_ms - (active_notes[i].hit_time_ms - 2000);
             int y = time_alive * 272 / 2000; // 降低速度：2秒钟从 0 掉落到 272
             lv_obj_set_y(active_notes[i].obj, y);
@@ -815,6 +856,16 @@ static void game_timer_cb(lv_timer_t * timer) {
                 update_score_ui();
             }
         }
+    }
+
+    if(current_song_map &&
+       current_song_map[next_note_idx].key_idx == -1 &&
+       !has_active_notes) {
+        if(game_timer) {
+            lv_timer_delete(game_timer);
+            game_timer = NULL;
+        }
+        show_guided_finish_popup();
     }
 }
 
@@ -985,6 +1036,83 @@ static void song_back_cb(lv_event_t * e) {
     create_main_menu_ui();
 }
 
+static void guided_finish_action_cb(lv_event_t * e) {
+    intptr_t action = (intptr_t)lv_event_get_user_data(e);
+
+    if(guided_finish_popup) {
+        lv_obj_delete(guided_finish_popup);
+        guided_finish_popup = NULL;
+    }
+    if(guided_finish_overlay) {
+        lv_obj_delete(guided_finish_overlay);
+        guided_finish_overlay = NULL;
+    }
+
+    if(piano_timer) { lv_timer_delete(piano_timer); piano_timer = NULL; }
+    if(game_timer) { lv_timer_delete(game_timer); game_timer = NULL; }
+    if(piano_win) { lv_obj_delete(piano_win); piano_win = NULL; }
+
+    if(action == 1) {
+        create_piano_ui();
+    } else if(action == 2) {
+        create_song_selection_ui();
+    } else {
+        create_main_menu_ui();
+    }
+}
+
+static void show_guided_finish_popup(void) {
+    if(guided_finish_popup) return;
+
+    guided_finish_overlay = create_modal_overlay();
+
+    guided_finish_popup = create_modal_card(guided_finish_overlay, 310, 300);
+
+    lv_obj_t * title = lv_label_create(guided_finish_popup);
+    lv_label_set_text(title, "本曲练习完成");
+    apply_title_visual(title, lv_color_hex(0x23424a));
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
+
+    lv_obj_t * summary = lv_label_create(guided_finish_popup);
+    lv_label_set_text_fmt(summary, "得分：%d    最大连击：%d", game_score, game_max_combo);
+    lv_obj_set_style_text_font(summary, &my_font_full, 0);
+    lv_obj_set_style_text_color(summary, lv_color_hex(0x2c3e50), 0);
+    lv_obj_align(summary, LV_ALIGN_TOP_MID, 0, 62);
+
+    lv_obj_t * btn_retry = lv_button_create(guided_finish_popup);
+    lv_obj_set_size(btn_retry, 180, 44);
+    lv_obj_align(btn_retry, LV_ALIGN_TOP_MID, 0, 112);
+    apply_glass_button_style(btn_retry);
+    lv_obj_add_event_cb(btn_retry, guided_finish_action_cb, LV_EVENT_CLICKED, (void *)1);
+    lv_obj_t * lbl_retry = lv_label_create(btn_retry);
+    lv_label_set_text(lbl_retry, "再来一次");
+    lv_obj_set_style_text_font(lbl_retry, &my_font_full, 0);
+    lv_obj_set_style_text_color(lbl_retry, lv_color_hex(0x1f4f55), 0);
+    lv_obj_center(lbl_retry);
+
+    lv_obj_t * btn_choose = lv_button_create(guided_finish_popup);
+    lv_obj_set_size(btn_choose, 180, 44);
+    lv_obj_align(btn_choose, LV_ALIGN_TOP_MID, 0, 166);
+    apply_glass_button_style(btn_choose);
+    lv_obj_add_event_cb(btn_choose, guided_finish_action_cb, LV_EVENT_CLICKED, (void *)2);
+    lv_obj_t * lbl_choose = lv_label_create(btn_choose);
+    lv_label_set_text(lbl_choose, "选择其他曲目");
+    lv_obj_set_style_text_font(lbl_choose, &my_font_full, 0);
+    lv_obj_set_style_text_color(lbl_choose, lv_color_hex(0x1f4f55), 0);
+    lv_obj_center(lbl_choose);
+
+    lv_obj_t * btn_back = lv_button_create(guided_finish_popup);
+    lv_obj_set_size(btn_back, 180, 44);
+    lv_obj_align(btn_back, LV_ALIGN_TOP_MID, 0, 220);
+    apply_glass_button_style(btn_back);
+    lv_obj_add_event_cb(btn_back, guided_finish_action_cb, LV_EVENT_CLICKED, (void *)3);
+    lv_obj_t * lbl_back = lv_label_create(btn_back);
+    lv_label_set_text(lbl_back, "返回大厅");
+    lv_obj_set_style_text_font(lbl_back, &my_font_full, 0);
+    lv_obj_set_style_text_color(lbl_back, lv_color_hex(0x1f4f55), 0);
+    lv_obj_center(lbl_back);
+}
+
 void create_song_selection_ui(void) {
     song_sel_win = lv_obj_create(lv_screen_active());
     lv_obj_set_size(song_sel_win, 800, 480);
@@ -1044,8 +1172,7 @@ void create_main_menu_ui(void) {
 
     lv_obj_t * title = lv_label_create(main_menu_win);
     lv_label_set_text(title, "应用大厅");
-    lv_obj_set_style_text_color(title, lv_color_hex(0x23424a), 0);
-    lv_obj_set_style_text_font(title, &my_font_full, 0);
+    apply_title_visual(title, lv_color_hex(0x23424a));
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
 
     lv_obj_t * btn_logout = lv_button_create(main_menu_win);
@@ -1410,8 +1537,7 @@ static void create_record_selection_ui(void) {
     
     lv_obj_t * title = lv_label_create(song_sel_win);
     lv_label_set_text(title, "选择要自动回放的亲传神作");
-    lv_obj_set_style_text_color(title, lv_color_white(), 0);
-    lv_obj_set_style_text_font(title, &my_font_full, 0);
+    apply_title_visual(title, lv_color_hex(0x23424a));
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
 
     lv_obj_t * btn_back = create_back_button(song_sel_win, song_back_cb);
