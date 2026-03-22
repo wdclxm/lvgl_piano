@@ -82,6 +82,10 @@ static lv_obj_t * login_win = NULL;
 static lv_obj_t * ta_user = NULL;
 static lv_obj_t * ta_pass = NULL;
 static lv_obj_t * kb = NULL;
+static lv_obj_t * login_active_ta = NULL;
+static lv_obj_t * login_pending_ta = NULL;
+static lv_obj_t * main_menu_win = NULL;
+static lv_obj_t * song_sel_win = NULL;
 
 typedef enum {
     PAGE_TITLE_LOGIN,
@@ -150,11 +154,89 @@ static void apply_danger_glass_button_style(lv_obj_t * btn) {
     lv_obj_set_style_radius(btn, 18, 0);
     lv_obj_set_style_text_color(btn, lv_color_hex(0x7a2130), 0);
 }
+
+static void ui_note_float_y_cb(void * var, int32_t v) {
+    lv_obj_set_y((lv_obj_t *)var, v);
+}
+
+static void ui_note_float_opa_cb(void * var, int32_t v) {
+    lv_obj_set_style_text_opa((lv_obj_t *)var, v, 0);
+}
+
+static void ui_note_cleanup_cb(lv_timer_t * timer) {
+    lv_obj_t * note = (lv_obj_t *)lv_timer_get_user_data(timer);
+    if(note) lv_obj_delete(note);
+    lv_timer_delete(timer);
+}
+
+static void show_ui_button_note(lv_obj_t * btn) {
+    static const uint32_t note_colors[] = {
+        0xF97316,
+        0x22C55E,
+        0x3B82F6,
+        0xEAB308,
+        0xEC4899,
+        0x8B5CF6,
+        0x06B6D4,
+        0xEF4444,
+        0x84CC16,
+        0xF59E0B,
+        0x14B8A6,
+        0x6366F1
+    };
+    lv_area_t area;
+    lv_obj_t * note = lv_label_create(lv_layer_top());
+    int color_idx = rand() % (int)(sizeof(note_colors) / sizeof(note_colors[0]));
+    int x_offset = (rand() % 19) - 9;
+    lv_obj_get_coords(btn, &area);
+    lv_label_set_text(note, LV_SYMBOL_AUDIO);
+    lv_obj_set_style_text_font(note, lv_theme_get_font_normal(NULL), 0);
+    lv_obj_set_style_text_color(note, lv_color_hex(note_colors[color_idx]), 0);
+    lv_obj_set_style_text_opa(note, 255, 0);
+    lv_obj_set_pos(note, area.x2 - 4 + x_offset, area.y1 - 8);
+
+    lv_anim_t y_anim;
+    lv_anim_init(&y_anim);
+    lv_anim_set_var(&y_anim, note);
+    lv_anim_set_values(&y_anim, area.y1 - 8, area.y1 - 34);
+    lv_anim_set_time(&y_anim, 320);
+    lv_anim_set_path_cb(&y_anim, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&y_anim, ui_note_float_y_cb);
+    lv_anim_start(&y_anim);
+
+    lv_anim_t opa_anim;
+    lv_anim_init(&opa_anim);
+    lv_anim_set_var(&opa_anim, note);
+    lv_anim_set_values(&opa_anim, 255, 0);
+    lv_anim_set_time(&opa_anim, 320);
+    lv_anim_set_path_cb(&opa_anim, lv_anim_path_ease_in);
+    lv_anim_set_exec_cb(&opa_anim, ui_note_float_opa_cb);
+    lv_anim_start(&opa_anim);
+
+    lv_timer_create(ui_note_cleanup_cb, 340, note);
+}
+
+static void ui_button_sound_cb(lv_event_t * e) {
+    static const int playable_key_indices[] = {
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+        10, 11, 13, 14, 15, 17, 18
+    };
+    lv_obj_t * btn = lv_event_get_target(e);
+    int idx = rand() % (int)(sizeof(playable_key_indices) / sizeof(playable_key_indices[0]));
+    platform_audio_play_key(playable_key_indices[idx]);
+    show_ui_button_note(btn);
+}
+
+static void attach_ui_button_sound(lv_obj_t * btn) {
+    lv_obj_add_event_cb(btn, ui_button_sound_cb, LV_EVENT_PRESSED, NULL);
+}
+
 static lv_obj_t * create_back_button(lv_obj_t * parent, lv_event_cb_t cb) {
     lv_obj_t * btn = lv_button_create(parent);
     lv_obj_set_size(btn, 120, 40);
     lv_obj_align(btn, LV_ALIGN_TOP_LEFT, 20, 20);
     apply_glass_button_style(btn);
+    attach_ui_button_sound(btn);
     lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t * label = lv_label_create(btn);
@@ -281,6 +363,7 @@ static void save_manage_state(void) {
 extern void create_piano_ui(void);
 extern void create_main_menu_ui(void);
 void create_song_selection_ui(void);
+static int current_app_mode;
 static const char * find_song_title(const char * filename);
 static void close_manage_popup(void);
 static void show_manage_home_popup(void);
@@ -329,6 +412,22 @@ static void close_err_cb(lv_event_t * e) {
     lv_obj_delete(popup);
 }
 
+static void auth_popup_timer_cb(lv_timer_t * timer) {
+    lv_obj_t * overlay = (lv_obj_t *)lv_timer_get_user_data(timer);
+    if(overlay) lv_obj_delete(overlay);
+    lv_timer_delete(timer);
+}
+
+static void login_success_popup_timer_cb(lv_timer_t * timer) {
+    lv_obj_t * overlay = (lv_obj_t *)lv_timer_get_user_data(timer);
+    if(overlay) lv_obj_delete(overlay);
+    if(login_win) { lv_obj_delete(login_win); login_win = NULL; }
+    if(kb) { lv_obj_delete(kb); kb = NULL; }
+    current_app_mode = 0;
+    create_piano_ui();
+    lv_timer_delete(timer);
+}
+
 static lv_obj_t * create_modal_overlay(void) {
     lv_obj_t * overlay = lv_obj_create(lv_screen_active());
     lv_obj_remove_style_all(overlay);
@@ -370,6 +469,7 @@ static void show_auth_popup(const char * message) {
     lv_obj_set_size(btn, 120, 44);
     lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -24);
     apply_glass_button_style(btn);
+    attach_ui_button_sound(btn);
     lv_obj_add_event_cb(btn, close_err_cb, LV_EVENT_CLICKED, overlay);
 
     lv_obj_t * blabel = lv_label_create(btn);
@@ -377,6 +477,19 @@ static void show_auth_popup(const char * message) {
     lv_obj_set_style_text_font(blabel, &my_font_full, 0);
     lv_obj_set_style_text_color(blabel, lv_color_hex(COLOR_SUBTITLE), 0);
     lv_obj_center(blabel);
+}
+
+static void show_timed_auth_popup(const char * message, uint32_t delay_ms, lv_timer_cb_t timer_cb) {
+    lv_obj_t * overlay = create_modal_overlay();
+    lv_obj_t * popup = create_modal_card(overlay, 400, 170);
+
+    lv_obj_t * label = lv_label_create(popup);
+    lv_label_set_text(label, message);
+    lv_obj_set_style_text_font(label, &my_font_full, 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(COLOR_SUBTITLE), 0);
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+
+    lv_timer_create(timer_cb ? timer_cb : auth_popup_timer_cb, delay_ms, overlay);
 }
 
 static void close_manage_popup(void) {
@@ -430,6 +543,7 @@ static void create_manage_close_button(lv_obj_t * parent, lv_event_cb_t cb) {
     lv_obj_set_style_radius(btn_close, 16, 0);
     lv_obj_set_style_shadow_width(btn_close, 18, 0);
     lv_obj_set_style_shadow_opa(btn_close, 76, 0);
+    attach_ui_button_sound(btn_close);
     lv_obj_add_event_cb(btn_close, cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t * lbl_close = lv_label_create(btn_close);
@@ -461,6 +575,7 @@ static void create_manage_row(lv_obj_t * parent, const char * title_text, const 
     lv_obj_align(action_btn, LV_ALIGN_RIGHT_MID, -8, 0);
     if(hidden) apply_glass_button_style(action_btn);
     else apply_danger_glass_button_style(action_btn);
+    attach_ui_button_sound(action_btn);
 
     {
         char packed[132];
@@ -489,6 +604,7 @@ static void show_manage_home_popup(void) {
     lv_obj_set_size(btn_guided, 210, 46);
     lv_obj_align(btn_guided, LV_ALIGN_TOP_MID, 0, 76);
     apply_glass_button_style(btn_guided);
+    attach_ui_button_sound(btn_guided);
     lv_obj_add_event_cb(btn_guided, manage_home_action_cb, LV_EVENT_CLICKED, (void *)1);
     lv_obj_t * lbl_guided = lv_label_create(btn_guided);
     lv_label_set_text(lbl_guided, "管理跟弹学习曲目");
@@ -500,6 +616,7 @@ static void show_manage_home_popup(void) {
     lv_obj_set_size(btn_record, 210, 46);
     lv_obj_align(btn_record, LV_ALIGN_TOP_MID, 0, 132);
     apply_glass_button_style(btn_record);
+    attach_ui_button_sound(btn_record);
     lv_obj_add_event_cb(btn_record, manage_home_action_cb, LV_EVENT_CLICKED, (void *)2);
     lv_obj_t * lbl_record = lv_label_create(btn_record);
     lv_label_set_text(lbl_record, "管理录制曲目");
@@ -528,6 +645,7 @@ static void show_manage_list_popup(manage_kind_t kind) {
     lv_obj_set_style_radius(btn_back, 16, 0);
     lv_obj_set_style_shadow_width(btn_back, 18, 0);
     lv_obj_set_style_shadow_opa(btn_back, 76, 0);
+    attach_ui_button_sound(btn_back);
     lv_obj_add_event_cb(btn_back, manage_list_back_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t * lbl_back = lv_label_create(btn_back);
     lv_label_set_text(lbl_back, LV_SYMBOL_LEFT);
@@ -579,20 +697,23 @@ static void login_btn_cb(lv_event_t * e) {
     const char * u = lv_textarea_get_text(ta_user);
     const char * p = lv_textarea_get_text(ta_pass);
     
-    if(strlen(u) == 0 || strlen(p) == 0) return;
+    if(strlen(u) == 0 || strlen(p) == 0) {
+        if(action == 1) show_auth_popup("登录账号或密码不能为空！");
+        else if(action == 2) show_auth_popup("注册账号或密码不能为空！");
+        return;
+    }
     
     if(action == 1) { // Login
         if(check_login(u, p)) {
             printf("[Login] Validation Success for %s!\n", u);
-            if(login_win) { lv_obj_delete(login_win); login_win = NULL; }
-            if(kb) { lv_obj_delete(kb); kb = NULL; }
-            create_main_menu_ui();
+            show_timed_auth_popup("登录成功！", 900, login_success_popup_timer_cb);
         } else {
             show_auth_popup("登录失败，账号或密码错误！");
         }
     } else if(action == 2) { // Register
         if(register_user(u, p)) {
             printf("[Register] Success: %s\n", u);
+            show_timed_auth_popup("注册成功！", 900, auth_popup_timer_cb);
         } else {
             printf("[Register] Failed: User %s may already exist.\n", u);
             show_auth_popup("注册失败，用户名已存在！");
@@ -600,13 +721,61 @@ static void login_btn_cb(lv_event_t * e) {
     }
 }
 
+static void hide_login_keyboard_except(lv_obj_t * keep_ta) {
+    if(kb != NULL) {
+        lv_obj_delete(kb);
+        kb = NULL;
+    }
+    if(ta_user && ta_user != keep_ta) lv_obj_remove_state(ta_user, LV_STATE_FOCUSED);
+    if(ta_pass && ta_pass != keep_ta) lv_obj_remove_state(ta_pass, LV_STATE_FOCUSED);
+    login_active_ta = keep_ta;
+}
+
+static void show_login_keyboard(lv_obj_t * ta) {
+    if(ta == NULL) return;
+    if(kb != NULL) {
+        lv_obj_delete(kb);
+        kb = NULL;
+    }
+    kb = lv_keyboard_create(lv_screen_active());
+    lv_keyboard_set_textarea(kb, ta);
+    login_active_ta = ta;
+}
+
+static void reopen_login_keyboard_cb(lv_timer_t * timer) {
+    lv_obj_t * ta = (lv_obj_t *)lv_timer_get_user_data(timer);
+    if(ta != NULL) {
+        lv_obj_add_state(ta, LV_STATE_FOCUSED);
+        show_login_keyboard(ta);
+    }
+    login_pending_ta = NULL;
+    lv_timer_delete(timer);
+}
+
+static void login_bg_event_cb(lv_event_t * e) {
+    lv_obj_t * target = lv_event_get_target(e);
+    if(target == ta_user || target == ta_pass || target == kb) return;
+    login_pending_ta = NULL;
+    hide_login_keyboard_except(NULL);
+}
+
 static void ta_event_cb(lv_event_t * e) {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t * ta = lv_event_get_target(e);
     if(code == LV_EVENT_FOCUSED) {
-        if(kb != NULL) { lv_keyboard_set_textarea(kb, ta); lv_obj_remove_flag(kb, LV_OBJ_FLAG_HIDDEN); }
+        if(login_active_ta != NULL && login_active_ta != ta) {
+            login_pending_ta = ta;
+            hide_login_keyboard_except(NULL);
+            lv_timer_create(reopen_login_keyboard_cb, 30, ta);
+        } else {
+            hide_login_keyboard_except(ta);
+            lv_obj_add_state(ta, LV_STATE_FOCUSED);
+            show_login_keyboard(ta);
+        }
     } else if(code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
-        if(kb != NULL) { lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN); lv_keyboard_set_textarea(kb, NULL); lv_obj_remove_state(ta, LV_STATE_FOCUSED); }
+        LV_UNUSED(ta);
+        login_pending_ta = NULL;
+        hide_login_keyboard_except(NULL);
     }
 }
 
@@ -615,6 +784,9 @@ void create_login_ui(void) {
     lv_obj_set_size(login_win, 800, 480);
     lv_obj_center(login_win);
     apply_page_bg(login_win);
+    login_active_ta = NULL;
+    login_pending_ta = NULL;
+    lv_obj_add_event_cb(login_win, login_bg_event_cb, LV_EVENT_CLICKED, NULL);
     
     lv_obj_t * title = lv_label_create(login_win);
     lv_label_set_text(title, "欢迎使用电子钢琴");
@@ -644,6 +816,7 @@ void create_login_ui(void) {
     lv_obj_set_size(btn_login, 120, 40);
     lv_obj_align(btn_login, LV_ALIGN_CENTER, -70, 50);
     apply_glass_button_style(btn_login);
+    attach_ui_button_sound(btn_login);
     lv_obj_add_event_cb(btn_login, login_btn_cb, LV_EVENT_CLICKED, (void*)1);
     lv_obj_t * lbl = lv_label_create(btn_login);
     lv_obj_set_style_text_font(lbl, &my_font_full, 0); // 按钮文字必须也使用全量字库
@@ -655,6 +828,7 @@ void create_login_ui(void) {
     lv_obj_set_size(btn_reg, 120, 40);
     lv_obj_align(btn_reg, LV_ALIGN_CENTER, 70, 50);
     apply_glass_button_style(btn_reg);
+    attach_ui_button_sound(btn_reg);
     lv_obj_add_event_cb(btn_reg, login_btn_cb, LV_EVENT_CLICKED, (void*)2);
     lbl = lv_label_create(btn_reg);
     lv_obj_set_style_text_font(lbl, &my_font_full, 0); // 按钮文字必须也使用全量字库
@@ -662,8 +836,7 @@ void create_login_ui(void) {
     lv_label_set_text(lbl, "注册");
     lv_obj_center(lbl);
     
-    kb = lv_keyboard_create(lv_screen_active());
-    lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+    kb = NULL;
 }
 
 // ================= Piano UI logic =================
@@ -672,6 +845,10 @@ static lv_timer_t * piano_timer = NULL;
 static lv_obj_t * piano_keys[19];
 static const char * piano_key_names[19];
 static int key_is_playing[19];
+static const char * default_key_names[19] = {
+    "C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5", "D5", "E5",
+    "C4#", "D4#", "", "F4#", "G4#", "A4#", "", "C5#", "D5#"
+};
 
 // ================= Rhythm Game Logic =================
 typedef struct { int key_idx; int hit_time_ms; } SongNote;
@@ -806,6 +983,8 @@ static void restart_guided_song(void);
 static void restart_auto_play_current(void);
 static void guided_finish_popup_delay_cb(lv_timer_t * timer);
 static void auto_finish_popup_delay_cb(lv_timer_t * timer);
+static void delayed_song_start_cb(lv_timer_t * timer);
+static void delayed_auto_play_start_cb(lv_timer_t * timer);
 static void close_manage_popup(void);
 static void show_manage_home_popup(void);
 static void show_manage_list_popup(manage_kind_t kind);
@@ -1164,6 +1343,34 @@ static void auto_finish_popup_delay_cb(lv_timer_t * timer) {
     lv_timer_delete(timer);
 }
 
+static void delayed_song_start_cb(lv_timer_t * timer) {
+    char * filename = (char *)lv_timer_get_user_data(timer);
+    if(filename) {
+        current_song_map = empty_map;
+        snprintf(current_song_filename, sizeof(current_song_filename), "%s", filename);
+        snprintf(current_song_title, sizeof(current_song_title), "%s", filename);
+        for(int i = 0; song_db[i].filename; i++) {
+            if(strcmp(song_db[i].filename, filename) == 0) {
+                current_song_map = song_db[i].notes;
+                snprintf(current_song_title, sizeof(current_song_title), "%s", song_db[i].title);
+                break;
+            }
+        }
+    }
+
+    if(song_sel_win) { lv_obj_delete(song_sel_win); song_sel_win = NULL; }
+    create_piano_ui();
+    free(filename);
+    lv_timer_delete(timer);
+}
+
+static void delayed_auto_play_start_cb(lv_timer_t * timer) {
+    char * filename = (char *)lv_timer_get_user_data(timer);
+    start_auto_play_from_record(filename);
+    free(filename);
+    lv_timer_delete(timer);
+}
+
 static int try_guided_hit_for_key(int key_idx, int guided_song_time_ms) {
     for(int j = 0; j < 50; j++) {
         if(active_notes[j].is_active && active_notes[j].target_key == key_idx) {
@@ -1435,10 +1642,6 @@ static void vol_icon_event_cb(lv_event_t * e) {
     }
 }
 
-static lv_obj_t * main_menu_win = NULL;
-
-static lv_obj_t * song_sel_win = NULL;
-
 static void back_to_menu_cb(lv_event_t * e) {
     if(piano_timer) { lv_timer_delete(piano_timer); piano_timer = NULL; }
     if(game_timer) { lv_timer_delete(game_timer); game_timer = NULL; }
@@ -1482,21 +1685,7 @@ static void main_menu_btn_cb(lv_event_t * e) {
 
 static void song_start_cb(lv_event_t * e) {
     const char * filename = (const char *)lv_event_get_user_data(e);
-    if(filename) {
-        current_song_map = empty_map;
-        snprintf(current_song_filename, sizeof(current_song_filename), "%s", filename);
-        snprintf(current_song_title, sizeof(current_song_title), "%s", filename);
-        for(int i=0; song_db[i].filename; i++) {
-            if(strcmp(song_db[i].filename, filename) == 0) {
-                current_song_map = song_db[i].notes;
-                snprintf(current_song_title, sizeof(current_song_title), "%s", song_db[i].title);
-                break;
-            }
-        }
-    }
-    
-    if(song_sel_win) { lv_obj_delete(song_sel_win); song_sel_win = NULL; }
-    create_piano_ui(); 
+    if(filename) lv_timer_create(delayed_song_start_cb, 500, strdup(filename));
 }
 
 static void song_back_cb(lv_event_t * e) {
@@ -1572,6 +1761,7 @@ static void show_guided_finish_popup(void) {
     lv_obj_set_size(btn_close, 32, 32);
     lv_obj_align(btn_close, LV_ALIGN_TOP_RIGHT, 18, -18);
     apply_danger_glass_button_style(btn_close);
+    attach_ui_button_sound(btn_close);
     lv_obj_set_style_radius(btn_close, 16, 0);
     lv_obj_set_style_border_width(btn_close, 1, 0);
     lv_obj_set_style_shadow_width(btn_close, 18, 0);
@@ -1587,6 +1777,7 @@ static void show_guided_finish_popup(void) {
     lv_obj_set_size(btn_retry, 180, 44);
     lv_obj_align(btn_retry, LV_ALIGN_TOP_MID, 0, 112);
     apply_glass_button_style(btn_retry);
+    attach_ui_button_sound(btn_retry);
     lv_obj_add_event_cb(btn_retry, guided_finish_action_cb, LV_EVENT_CLICKED, (void *)1);
     lv_obj_t * lbl_retry = lv_label_create(btn_retry);
     lv_label_set_text(lbl_retry, "再来一次");
@@ -1598,6 +1789,7 @@ static void show_guided_finish_popup(void) {
     lv_obj_set_size(btn_choose, 180, 44);
     lv_obj_align(btn_choose, LV_ALIGN_TOP_MID, 0, 166);
     apply_glass_button_style(btn_choose);
+    attach_ui_button_sound(btn_choose);
     lv_obj_add_event_cb(btn_choose, guided_finish_action_cb, LV_EVENT_CLICKED, (void *)2);
     lv_obj_t * lbl_choose = lv_label_create(btn_choose);
     lv_label_set_text(lbl_choose, "选择其他曲目");
@@ -1609,6 +1801,7 @@ static void show_guided_finish_popup(void) {
     lv_obj_set_size(btn_back, 180, 44);
     lv_obj_align(btn_back, LV_ALIGN_TOP_MID, 0, 220);
     apply_glass_button_style(btn_back);
+    attach_ui_button_sound(btn_back);
     lv_obj_add_event_cb(btn_back, guided_finish_action_cb, LV_EVENT_CLICKED, (void *)3);
     lv_obj_t * lbl_back = lv_label_create(btn_back);
     lv_label_set_text(lbl_back, "返回大厅");
@@ -1686,6 +1879,7 @@ static void show_auto_finish_popup(void) {
     lv_obj_set_size(btn_close, 32, 32);
     lv_obj_align(btn_close, LV_ALIGN_TOP_RIGHT, 18, -18);
     apply_danger_glass_button_style(btn_close);
+    attach_ui_button_sound(btn_close);
     lv_obj_set_style_radius(btn_close, 16, 0);
     lv_obj_set_style_shadow_width(btn_close, 18, 0);
     lv_obj_set_style_shadow_opa(btn_close, 76, 0);
@@ -1700,6 +1894,7 @@ static void show_auto_finish_popup(void) {
     lv_obj_set_size(btn_retry, 180, 44);
     lv_obj_align(btn_retry, LV_ALIGN_TOP_MID, 0, 126);
     apply_glass_button_style(btn_retry);
+    attach_ui_button_sound(btn_retry);
     lv_obj_add_event_cb(btn_retry, auto_finish_action_cb, LV_EVENT_CLICKED, (void *)1);
     lv_obj_t * lbl_retry = lv_label_create(btn_retry);
     lv_label_set_text(lbl_retry, "再来一次");
@@ -1711,6 +1906,7 @@ static void show_auto_finish_popup(void) {
     lv_obj_set_size(btn_choose, 180, 44);
     lv_obj_align(btn_choose, LV_ALIGN_TOP_MID, 0, 180);
     apply_glass_button_style(btn_choose);
+    attach_ui_button_sound(btn_choose);
     lv_obj_add_event_cb(btn_choose, auto_finish_action_cb, LV_EVENT_CLICKED, (void *)2);
     lv_obj_t * lbl_choose = lv_label_create(btn_choose);
     lv_label_set_text(lbl_choose, "选择其他曲目");
@@ -1722,6 +1918,7 @@ static void show_auto_finish_popup(void) {
     lv_obj_set_size(btn_back, 180, 44);
     lv_obj_align(btn_back, LV_ALIGN_TOP_MID, 0, 234);
     apply_glass_button_style(btn_back);
+    attach_ui_button_sound(btn_back);
     lv_obj_add_event_cb(btn_back, auto_finish_action_cb, LV_EVENT_CLICKED, (void *)3);
     lv_obj_t * lbl_back = lv_label_create(btn_back);
     lv_label_set_text(lbl_back, "返回大厅");
@@ -1773,6 +1970,7 @@ void create_song_selection_ui(void) {
                 
                 lv_obj_t * btn = lv_list_add_button(list, LV_SYMBOL_AUDIO, btn_txt);
                 fix_list_button_fonts(btn);
+                attach_ui_button_sound(btn);
                 
                 char * payload = strdup(dir->d_name);
                 lv_obj_add_event_cb(btn, song_start_cb, LV_EVENT_CLICKED, payload);
@@ -1797,6 +1995,7 @@ void create_main_menu_ui(void) {
     lv_obj_set_size(btn_logout, 120, 40);
     lv_obj_align(btn_logout, LV_ALIGN_TOP_LEFT, 20, 20);
     apply_danger_glass_button_style(btn_logout);
+    attach_ui_button_sound(btn_logout);
     lv_obj_add_event_cb(btn_logout, main_menu_btn_cb, LV_EVENT_CLICKED, (void*)99);
     
     lv_obj_t * lbl_out = lv_label_create(btn_logout);
@@ -1815,6 +2014,7 @@ void create_main_menu_ui(void) {
         lv_obj_set_size(btn, 180, 100);
         lv_obj_align(btn, LV_ALIGN_CENTER, coords[i][0], coords[i][1]);
         apply_glass_button_style(btn);
+        attach_ui_button_sound(btn);
         if(i == 0) lv_obj_add_event_cb(btn, main_menu_btn_cb, LV_EVENT_CLICKED, (void*)1);
         if(i == 1) lv_obj_add_event_cb(btn, main_menu_btn_cb, LV_EVENT_CLICKED, (void*)2);
         if(i == 2) lv_obj_add_event_cb(btn, main_menu_btn_cb, LV_EVENT_CLICKED, (void*)3);
@@ -1839,6 +2039,7 @@ void create_main_menu_ui(void) {
     lv_obj_align(btn_manage, LV_ALIGN_BOTTOM_RIGHT, -20, -20);
     apply_glass_button_style(btn_manage);
     lv_obj_set_style_radius(btn_manage, 23, 0);
+    attach_ui_button_sound(btn_manage);
     lv_obj_add_event_cb(btn_manage, manage_entry_cb, LV_EVENT_CLICKED, NULL);
 
     for(int i = 0; i < 3; i++) {
@@ -1884,6 +2085,7 @@ void create_piano_ui(void) {
         btn_record_toggle = lv_button_create(scr);
         lv_obj_set_size(btn_record_toggle, 160, 50);
         lv_obj_align(btn_record_toggle, LV_ALIGN_TOP_MID, 0, 80);
+        attach_ui_button_sound(btn_record_toggle);
         lv_obj_add_event_cb(btn_record_toggle, record_toggle_cb, LV_EVENT_CLICKED, NULL);
 
         lbl_record_toggle = lv_label_create(btn_record_toggle);
@@ -2260,7 +2462,7 @@ static void start_auto_play_from_record(const char * filename) {
 
 static void auto_play_start_cb(lv_event_t * e) {
     const char * filename = (const char *)lv_event_get_user_data(e);
-    start_auto_play_from_record(filename);
+    if(filename) lv_timer_create(delayed_auto_play_start_cb, 500, strdup(filename));
 }
 
 static void create_record_selection_ui(void) {
@@ -2292,6 +2494,7 @@ static void create_record_selection_ui(void) {
                 if(is_record_hidden(dir->d_name)) continue;
                 lv_obj_t * btn = lv_list_add_button(list, LV_SYMBOL_PLAY, dir->d_name);
                 fix_list_button_fonts(btn);
+                attach_ui_button_sound(btn);
                 char * payload = strdup(dir->d_name);
                 lv_obj_add_event_cb(btn, auto_play_start_cb, LV_EVENT_CLICKED, payload);
             }
@@ -2301,9 +2504,12 @@ static void create_record_selection_ui(void) {
 }
 
 int main(void) {
+    srand((unsigned int)time(NULL));
     if(platform_init() != 0) {
         return -1;
     }
+    platform_audio_init(default_key_names, 19);
+    platform_audio_set_mix_volumes(piano_mix_volume, bgm_mix_volume);
     load_manage_state();
 #if 0
     // 1. Display & Input Setup
