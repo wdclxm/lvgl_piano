@@ -1,0 +1,27 @@
+#ifndef LV_CONF_PC_H
+#define LV_CONF_PC_H
+
+#include "lv_conf.h"
+
+#undef LV_USE_OS
+#define LV_USE_OS LV_OS_NONE
+
+#undef LV_USE_SDL
+#define LV_USE_SDL 1
+
+#undef LV_SDL_INCLUDE_PATH
+#define LV_SDL_INCLUDE_PATH <SDL2/SDL.h>
+
+#undef LV_SDL_RENDER_MODE
+#define LV_SDL_RENDER_MODE LV_DISPLAY_RENDER_MODE_DIRECT
+
+#undef LV_SDL_BUF_COUNT
+#define LV_SDL_BUF_COUNT 1
+
+#undef LV_SDL_FULLSCREEN
+#define LV_SDL_FULLSCREEN 0
+
+#undef LV_SDL_DIRECT_EXIT
+#define LV_SDL_DIRECT_EXIT 1
+
+#endif
