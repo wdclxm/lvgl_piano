@@ -68,10 +68,14 @@ static void play_startup_animation_if_available(void)
     }
 
     printf("[Info][PC] Playing startup animation: movie/boluo.avi\n");
+<<<<<<< HEAD
     {
         int rc = system("mplayer -slave -quiet -geometry 0:0 -framedrop movie/boluo.avi");
         (void)rc;
     }
+=======
+    system("mplayer -slave -quiet -geometry 0:0 -framedrop movie/boluo.avi");
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
 }
 
 static void sdl_audio_callback(void * userdata, Uint8 * stream, int len)

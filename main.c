@@ -100,6 +100,7 @@ static void apply_page_bg(lv_obj_t * page) {
     lv_obj_remove_flag(page, LV_OBJ_FLAG_SCROLLABLE);
 }
 
+<<<<<<< HEAD
 static void apply_glass_button_style(lv_obj_t * btn) {
     lv_obj_set_style_bg_color(btn, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(btn, 90, 0);
@@ -134,17 +135,32 @@ static void apply_danger_glass_button_style(lv_obj_t * btn) {
     lv_obj_set_style_text_color(btn, lv_color_hex(0x7a2130), 0);
 }
 
+=======
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
 static lv_obj_t * create_back_button(lv_obj_t * parent, lv_event_cb_t cb) {
     lv_obj_t * btn = lv_button_create(parent);
     lv_obj_set_size(btn, 120, 40);
     lv_obj_align(btn, LV_ALIGN_TOP_LEFT, 20, 20);
+<<<<<<< HEAD
     apply_glass_button_style(btn);
+=======
+    lv_obj_set_style_bg_color(btn, lv_color_hex(0x2f80d1), 0);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(0x2567a8), LV_STATE_PRESSED);
+    lv_obj_set_style_text_color(btn, lv_color_white(), 0);
+    lv_obj_set_style_radius(btn, 14, 0);
+    lv_obj_set_style_shadow_width(btn, 0, 0);
+    lv_obj_set_style_border_width(btn, 0, 0);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t * label = lv_label_create(btn);
     lv_label_set_text(label, "返回大厅");
     lv_obj_set_style_text_font(label, &my_font_full, 0);
+<<<<<<< HEAD
     lv_obj_set_style_text_color(label, lv_color_hex(0x1f4f55), 0);
+=======
+    lv_obj_set_style_text_color(label, lv_color_white(), 0);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     lv_obj_center(label);
     return btn;
 }
@@ -251,13 +267,19 @@ static void login_btn_cb(lv_event_t * e) {
             lv_obj_t * btn = lv_button_create(popup);
             lv_obj_set_size(btn, 100, 40);
             lv_obj_align(btn, LV_ALIGN_BOTTOM_MID, 0, -10);
+<<<<<<< HEAD
             apply_glass_button_style(btn);
+=======
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
             lv_obj_add_event_cb(btn, close_err_cb, LV_EVENT_CLICKED, popup);
             
             lv_obj_t * blabel = lv_label_create(btn);
             lv_label_set_text(blabel, "关闭");
             lv_obj_set_style_text_font(blabel, &my_font_full, 0);
+<<<<<<< HEAD
             lv_obj_set_style_text_color(blabel, lv_color_hex(0x1f4f55), 0);
+=======
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
             lv_obj_center(blabel);
         }
     } else if(action == 2) { // Register
@@ -312,22 +334,34 @@ void create_login_ui(void) {
     lv_obj_t * btn_login = lv_button_create(login_win);
     lv_obj_set_size(btn_login, 120, 40);
     lv_obj_align(btn_login, LV_ALIGN_CENTER, -70, 50);
+<<<<<<< HEAD
     apply_glass_button_style(btn_login);
     lv_obj_add_event_cb(btn_login, login_btn_cb, LV_EVENT_CLICKED, (void*)1);
     lv_obj_t * lbl = lv_label_create(btn_login);
     lv_obj_set_style_text_font(lbl, &my_font_full, 0); // 按钮文字必须也使用全量字库
     lv_obj_set_style_text_color(lbl, lv_color_hex(0x1f4f55), 0);
+=======
+    lv_obj_add_event_cb(btn_login, login_btn_cb, LV_EVENT_CLICKED, (void*)1);
+    lv_obj_t * lbl = lv_label_create(btn_login);
+    lv_obj_set_style_text_font(lbl, &my_font_full, 0); // 按钮文字必须也使用全量字库
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     lv_label_set_text(lbl, "登录");
     lv_obj_center(lbl);
 
     lv_obj_t * btn_reg = lv_button_create(login_win);
     lv_obj_set_size(btn_reg, 120, 40);
     lv_obj_align(btn_reg, LV_ALIGN_CENTER, 70, 50);
+<<<<<<< HEAD
     apply_glass_button_style(btn_reg);
     lv_obj_add_event_cb(btn_reg, login_btn_cb, LV_EVENT_CLICKED, (void*)2);
     lbl = lv_label_create(btn_reg);
     lv_obj_set_style_text_font(lbl, &my_font_full, 0); // 按钮文字必须也使用全量字库
     lv_obj_set_style_text_color(lbl, lv_color_hex(0x1f4f55), 0);
+=======
+    lv_obj_add_event_cb(btn_reg, login_btn_cb, LV_EVENT_CLICKED, (void*)2);
+    lbl = lv_label_create(btn_reg);
+    lv_obj_set_style_text_font(lbl, &my_font_full, 0); // 按钮文字必须也使用全量字库
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     lv_label_set_text(lbl, "注册");
     lv_obj_center(lbl);
     
@@ -415,6 +449,7 @@ static int record_note_count = 0;
 static uint32_t record_start_tick = 0;
 static int is_recording = 0;
 static lv_obj_t * lbl_record_status = NULL;
+<<<<<<< HEAD
 static lv_obj_t * btn_record_toggle = NULL;
 static lv_obj_t * lbl_record_toggle = NULL;
 
@@ -434,6 +469,8 @@ static void update_record_toggle_button(void) {
     lv_obj_set_style_text_font(lbl_record_toggle, &my_font_full, 0);
     lv_obj_center(lbl_record_toggle);
 }
+=======
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
 
 static SongNote playback_buffer[MAX_RECORD_NOTES];
 static int auto_play_idx = 0;
@@ -444,7 +481,10 @@ static lv_timer_t * auto_play_timer = NULL;
 static void create_naming_ui(void);
 static void create_record_selection_ui(void);
 static void stop_recording_cb(lv_event_t * e);
+<<<<<<< HEAD
 static void record_toggle_cb(lv_event_t * e);
+=======
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
 
 extern void create_login_ui(void);
 
@@ -773,19 +813,31 @@ static void game_timer_cb(lv_timer_t * timer) {
                     active_notes[i].target_key = current_song_map[next_note_idx].key_idx;
                     active_notes[i].hit_time_ms = current_song_map[next_note_idx].hit_time_ms;
                     
+<<<<<<< HEAD
                     lv_obj_t * note_obj = lv_obj_create(track_container); // 在音轨区生成下落音符
+=======
+                    lv_obj_t * note_obj = lv_obj_create(track_container); // 在黑板上
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
                     int is_black = active_notes[i].target_key >= 10;
                     if(!is_black) {
                         lv_obj_set_size(note_obj, 76, 30);
                         int x = active_notes[i].target_key * 80 + 2; 
                         lv_obj_set_pos(note_obj, x, 0);
+<<<<<<< HEAD
                         lv_obj_set_style_bg_color(note_obj, lv_color_hex(0xff7f50), 0);
+=======
+                        lv_obj_set_style_bg_color(note_obj, lv_color_hex(0x00ffcc), 0);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
                     } else {
                         lv_obj_set_size(note_obj, 46, 30);
                         int w_idx = active_notes[i].target_key - 10;
                         int x = w_idx * 80 + 57; 
                         lv_obj_set_pos(note_obj, x, 0);
+<<<<<<< HEAD
                         lv_obj_set_style_bg_color(note_obj, lv_color_hex(0xff7f50), 0);
+=======
+                        lv_obj_set_style_bg_color(note_obj, lv_color_hex(0xff3366), 0);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
                     }
                     lv_obj_set_style_border_width(note_obj, 0, 0);
                     lv_obj_set_style_radius(note_obj, 8, 0);
@@ -933,9 +985,12 @@ static void back_to_menu_cb(lv_event_t * e) {
     if(piano_win) { lv_obj_delete(piano_win); piano_win = NULL; }
     
     is_recording = 0;
+<<<<<<< HEAD
     btn_record_toggle = NULL;
     lbl_record_toggle = NULL;
     lbl_record_status = NULL;
+=======
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     platform_audio_stop_bgm();
 
     create_main_menu_ui();
@@ -996,14 +1051,30 @@ void create_song_selection_ui(void) {
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
     lv_obj_set_style_text_font(title, &my_font_full, 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
+<<<<<<< HEAD
     set_page_title(title, PAGE_TITLE_SONG_SELECTION);
 
     lv_obj_t * btn_back = create_back_button(song_sel_win, song_back_cb);
+=======
+    set_page_title(title, PAGE_TITLE_MAIN_MENU);
+    set_page_title(title, PAGE_TITLE_SONG_SELECTION);
+
+    lv_obj_t * btn_back = create_back_button(song_sel_win, song_back_cb);
+    lv_obj_set_size(btn_back, 120, 40);
+    lv_obj_align(btn_back, LV_ALIGN_TOP_LEFT, 20, 20);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     lv_obj_t * lbl_back = lv_obj_get_child(btn_back, 0);
     lv_label_set_text(lbl_back, "返回大厅");
     lv_obj_set_style_text_font(lbl_back, &my_font_full, 0);
     lv_obj_center(lbl_back);
+<<<<<<< HEAD
     lv_obj_set_style_text_color(lbl_back, lv_color_hex(0x1f4f55), 0);
+=======
+    lv_label_set_text(lbl_back, "返回大厅");
+    lv_obj_set_style_text_color(lbl_back, lv_color_white(), 0);
+    lv_label_set_text(lbl_back, "返回大厅");
+    lv_obj_set_style_text_color(lbl_back, lv_color_white(), 0);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
 
     lv_obj_t * list = lv_list_create(song_sel_win);
     lv_obj_set_size(list, 500, 300);
@@ -1045,20 +1116,31 @@ void create_main_menu_ui(void) {
 
     lv_obj_t * title = lv_label_create(main_menu_win);
     lv_label_set_text(title, "应用大厅");
+<<<<<<< HEAD
     lv_obj_set_style_text_color(title, lv_color_hex(0x23424a), 0);
+=======
+    lv_obj_set_style_text_color(title, lv_color_white(), 0);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     lv_obj_set_style_text_font(title, &my_font_full, 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
 
     lv_obj_t * btn_logout = lv_button_create(main_menu_win);
     lv_obj_set_size(btn_logout, 100, 40);
     lv_obj_align(btn_logout, LV_ALIGN_TOP_RIGHT, -20, 20);
+<<<<<<< HEAD
     apply_danger_glass_button_style(btn_logout);
+=======
+    lv_obj_set_style_bg_color(btn_logout, lv_color_hex(0xee4444), 0);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     lv_obj_add_event_cb(btn_logout, main_menu_btn_cb, LV_EVENT_CLICKED, (void*)99);
     
     lv_obj_t * lbl_out = lv_label_create(btn_logout);
     lv_label_set_text(lbl_out, "退出登录");
     lv_obj_set_style_text_font(lbl_out, &my_font_full, 0);
+<<<<<<< HEAD
     lv_obj_set_style_text_color(lbl_out, lv_color_hex(0x7a2130), 0);
+=======
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     lv_obj_center(lbl_out);
 
     // 2x2 Grid Buttons (拆分 Icon 和 文字，防止中文字库缺少矢量符号导致不显示)
@@ -1070,7 +1152,10 @@ void create_main_menu_ui(void) {
         lv_obj_t * btn = lv_button_create(main_menu_win);
         lv_obj_set_size(btn, 180, 100);
         lv_obj_align(btn, LV_ALIGN_CENTER, coords[i][0], coords[i][1]);
+<<<<<<< HEAD
         apply_glass_button_style(btn);
+=======
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
         if(i == 0) lv_obj_add_event_cb(btn, main_menu_btn_cb, LV_EVENT_CLICKED, (void*)1);
         if(i == 1) lv_obj_add_event_cb(btn, main_menu_btn_cb, LV_EVENT_CLICKED, (void*)2);
         if(i == 2) lv_obj_add_event_cb(btn, main_menu_btn_cb, LV_EVENT_CLICKED, (void*)3);
@@ -1086,7 +1171,10 @@ void create_main_menu_ui(void) {
         lv_obj_t * lbl_text = lv_label_create(btn);
         lv_label_set_text(lbl_text, texts[i]);
         lv_obj_set_style_text_font(lbl_text, &my_font_full, 0); // 中文强行挂载字库
+<<<<<<< HEAD
         lv_obj_set_style_text_color(lbl_text, lv_color_hex(0x1f4f55), 0);
+=======
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
         lv_obj_align(lbl_text, LV_ALIGN_CENTER, 0, 15);
     }
 }
@@ -1108,6 +1196,7 @@ void create_piano_ui(void) {
 
     // 返回菜单按钮
     lv_obj_t * btn_back = create_back_button(scr, back_to_menu_cb);
+<<<<<<< HEAD
     lv_obj_t * lbl_back = lv_obj_get_child(btn_back, 0);
     lv_label_set_text(lbl_back, "返回大厅");
     lv_obj_set_style_text_font(lbl_back, &my_font_full, 0);
@@ -1130,6 +1219,41 @@ void create_piano_ui(void) {
         record_start_tick = 0;
         is_recording = 0;
         update_record_toggle_button();
+=======
+    lv_obj_set_size(btn_back, 120, 40);
+    lv_obj_align(btn_back, LV_ALIGN_TOP_LEFT, 20, 20);
+    lv_obj_t * lbl_back = lv_obj_get_child(btn_back, 0);
+    lv_label_set_text(lbl_back, "返回菜单");
+    lv_obj_set_style_text_font(lbl_back, &my_font_full, 0);
+    lv_obj_set_style_text_color(lbl_back, lv_color_white(), 0);
+    lv_obj_center(lbl_back);
+    lv_label_set_text(lbl_back, "返回大厅");
+
+    if(current_app_mode == 3) {
+        lv_obj_t * btn_stop_rec = lv_button_create(scr);
+        lv_obj_set_size(btn_stop_rec, 160, 50);
+        lv_obj_align(btn_stop_rec, LV_ALIGN_TOP_MID, 0, 80);
+        lv_obj_set_style_bg_color(btn_stop_rec, lv_color_hex(0xee4444), 0);
+        lv_obj_add_event_cb(btn_stop_rec, stop_recording_cb, LV_EVENT_CLICKED, NULL);
+
+        lv_obj_t * lbl_stop = lv_label_create(btn_stop_rec);
+        lv_label_set_text(lbl_stop, LV_SYMBOL_STOP " 结束录制");
+        lv_obj_set_style_text_font(lbl_stop, &my_font_full, 0);
+        lv_obj_center(lbl_stop);
+        lv_label_set_text(lbl_stop, "结束录制");
+        lv_obj_set_style_text_color(lbl_stop, lv_color_white(), 0);
+        
+        lbl_record_status = lv_label_create(scr);
+        lv_label_set_text(lbl_record_status, "等待手指敲击起跑...");
+        lv_obj_set_style_text_font(lbl_record_status, &my_font_full, 0);
+        lv_obj_set_style_text_color(lbl_record_status, lv_color_hex(0xdd2222), 0);
+        lv_obj_align(lbl_record_status, LV_ALIGN_TOP_MID, 0, 30);
+        
+        memset(recorded_buffer, 0, sizeof(recorded_buffer));
+        record_note_count = 0;
+        record_start_tick = 0;
+        is_recording = 1;
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     } else if(current_app_mode == 2) {
         lv_obj_t * lbl_auto = lv_label_create(scr);
         lv_label_set_text(lbl_auto, LV_SYMBOL_PLAY " 自动演奏中 (幽灵模式)");
@@ -1143,10 +1267,14 @@ void create_piano_ui(void) {
 
     // Title label
     lv_obj_t * title = lv_label_create(scr);
+<<<<<<< HEAD
     if(current_app_mode == 1) set_page_title(title, PAGE_TITLE_GUIDED);
     else if(current_app_mode == 2) set_page_title(title, PAGE_TITLE_AUTO_PLAY);
     else if(current_app_mode == 3) set_page_title(title, PAGE_TITLE_RECORD);
     else set_page_title(title, PAGE_TITLE_FREE_PLAY);
+=======
+    lv_label_set_text(title, "Electronic Piano");
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     lv_obj_set_style_text_color(title, lv_color_hex(0x2c3e50), 0); // 深色文字保证薄荷背景可读性
     lv_obj_set_style_text_font(title, &my_font_full, 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
@@ -1180,19 +1308,31 @@ void create_piano_ui(void) {
         track_container = lv_obj_create(piano_win);
         lv_obj_set_size(track_container, 800, 272);
         lv_obj_align(track_container, LV_ALIGN_TOP_MID, 0, 0);
+<<<<<<< HEAD
         lv_obj_set_style_bg_color(track_container, lv_color_hex(0xd4f0f0), 0);
+=======
+        lv_obj_set_style_bg_color(track_container, lv_color_black(), 0);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
         lv_obj_set_style_border_width(track_container, 0, 0);
         lv_obj_set_style_radius(track_container, 0, 0);
         lv_obj_set_style_pad_all(track_container, 0, 0);
         lv_obj_remove_flag(track_container, LV_OBJ_FLAG_SCROLLABLE);
 
         lbl_score = lv_label_create(track_container);
+<<<<<<< HEAD
         lv_obj_set_style_text_color(lbl_score, lv_color_hex(0x2c3e50), 0);
+=======
+        lv_obj_set_style_text_color(lbl_score, lv_color_white(), 0);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
         lv_obj_set_style_text_font(lbl_score, &my_font_full, 0);
         lv_obj_align(lbl_score, LV_ALIGN_TOP_RIGHT, -20, 20);
         
         lbl_combo = lv_label_create(track_container);
+<<<<<<< HEAD
         lv_obj_set_style_text_color(lbl_combo, lv_color_hex(0xd96c3f), 0);
+=======
+        lv_obj_set_style_text_color(lbl_combo, lv_color_hex(0xffcc00), 0);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
         lv_obj_set_style_text_font(lbl_combo, &my_font_full, 0);
         lv_obj_align(lbl_combo, LV_ALIGN_TOP_RIGHT, -20, 50);
         
@@ -1211,6 +1351,7 @@ void create_piano_ui(void) {
 
         game_timer = lv_timer_create(game_timer_cb, 20, NULL);
         
+<<<<<<< HEAD
         // 游戏模式下隐藏标题，避免遮挡音轨
         lv_obj_add_flag(title, LV_OBJ_FLAG_HIDDEN);
         
@@ -1218,6 +1359,15 @@ void create_piano_ui(void) {
         lv_obj_move_foreground(btn_back);
         lv_obj_move_foreground(vol_btn);
         lv_obj_move_foreground(vol_slider);
+=======
+        // 游戏模式下隐藏自由演奏专用的标题和音量控件，防止遮挡音轨
+        lv_obj_add_flag(title, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(vol_btn, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(vol_slider, LV_OBJ_FLAG_HIDDEN);
+        
+        // 修复返回按钮被纯黑的音轨背景“盖住”的问题，提到最上层图层
+        lv_obj_move_foreground(btn_back);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     }
 
     // Piano container
@@ -1358,16 +1508,21 @@ static void create_naming_ui(void) {
 }
 
 static void stop_recording_cb(lv_event_t * e) {
+<<<<<<< HEAD
     LV_UNUSED(e);
     is_recording = 0;
     btn_record_toggle = NULL;
     lbl_record_toggle = NULL;
     lbl_record_status = NULL;
+=======
+    is_recording = 0;
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     if(piano_timer) { lv_timer_delete(piano_timer); piano_timer = NULL; }
     if(piano_win) { lv_obj_delete(piano_win); piano_win = NULL; }
     create_naming_ui();
 }
 
+<<<<<<< HEAD
 static void record_toggle_cb(lv_event_t * e) {
     if(is_recording) {
         stop_recording_cb(e);
@@ -1381,6 +1536,8 @@ static void record_toggle_cb(lv_event_t * e) {
     update_record_toggle_button();
 }
 
+=======
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
 static void auto_play_start_cb(lv_event_t * e) {
     const char * filename = (const char *)lv_event_get_user_data(e);
     if(filename) {
@@ -1414,10 +1571,18 @@ static void create_record_selection_ui(void) {
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
 
     lv_obj_t * btn_back = create_back_button(song_sel_win, song_back_cb);
+<<<<<<< HEAD
     lv_obj_t * lbl_back = lv_obj_get_child(btn_back, 0);
     lv_label_set_text(lbl_back, "返回大厅");
     lv_obj_set_style_text_font(lbl_back, &my_font_full, 0);
     lv_obj_set_style_text_color(lbl_back, lv_color_hex(0x1f4f55), 0);
+=======
+    lv_obj_set_size(btn_back, 120, 40);
+    lv_obj_align(btn_back, LV_ALIGN_TOP_LEFT, 20, 20);
+    lv_obj_t * lbl_back = lv_obj_get_child(btn_back, 0);
+    lv_label_set_text(lbl_back, "返回大厅");
+    lv_obj_set_style_text_font(lbl_back, &my_font_full, 0);
+>>>>>>> edf20eb560992c189c6923b8e384103c3e9a21a2
     lv_obj_center(lbl_back);
 
     lv_obj_t * list = lv_list_create(song_sel_win);
