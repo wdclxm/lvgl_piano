@@ -1194,6 +1194,9 @@ void create_piano_ui(void) {
         lv_obj_set_style_text_color(lbl_combo, lv_color_hex(0xd96c3f), 0);
         lv_obj_set_style_text_font(lbl_combo, &my_font_full, 0);
         lv_obj_align(lbl_combo, LV_ALIGN_TOP_RIGHT, -20, 50);
+
+        lv_obj_align(vol_btn, LV_ALIGN_TOP_RIGHT, -20, 78);
+        lv_obj_align_to(vol_slider, vol_btn, LV_ALIGN_OUT_LEFT_MID, -10, 0);
         
         game_score = 0; game_combo = 0; game_max_combo = 0;
         game_time_ms = -2000;
