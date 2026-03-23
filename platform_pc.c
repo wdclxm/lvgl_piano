@@ -28,6 +28,7 @@ typedef struct {
 
 static platform_touch_point_t touch_points[PLATFORM_MAX_TOUCH];
 static hardware_wav_t key_wavs[PLATFORM_KEY_CAPACITY];
+static hardware_wav_t override_key_wavs[PLATFORM_KEY_CAPACITY];
 static hardware_wav_t bgm_wav;
 static audio_channel_t audio_channels[MAX_AUDIO_CHANNELS];
 static pthread_mutex_t audio_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -36,6 +37,7 @@ static int ui_volume = 80;
 static int key_mix_volume = 80;
 static int bgm_mix_volume = 75;
 static float bgm_base_volume = 1.0f;
+static int override_only_mode = 0;
 
 static int file_exists(const char * path)
 {
@@ -75,6 +77,14 @@ static void play_startup_animation_if_available(void)
         int rc = system("mplayer -slave -quiet -geometry 0:0 -framedrop movie/boluo.avi");
         (void)rc;
     }
+}
+
+static hardware_wav_t * get_key_wav_for_playback(int key_idx)
+{
+    if(key_idx < 0 || key_idx >= PLATFORM_KEY_CAPACITY) return NULL;
+    if(override_key_wavs[key_idx].data) return &override_key_wavs[key_idx];
+    if(override_only_mode) return NULL;
+    return &key_wavs[key_idx];
 }
 
 static void sdl_audio_callback(void * userdata, Uint8 * stream, int len)
@@ -300,8 +310,11 @@ static void play_sound_on_channel(int ch_idx, hardware_wav_t * wav, float vol)
 
 void platform_audio_play_key(int key_idx)
 {
+    hardware_wav_t * wav = NULL;
     int found_ch = -1;
     if(key_idx < 0 || key_idx >= PLATFORM_KEY_CAPACITY) return;
+    wav = get_key_wav_for_playback(key_idx);
+    if(wav == NULL || wav->data == NULL) return;
 
     pthread_mutex_lock(&audio_mutex);
     for(int i = 1; i < MAX_AUDIO_CHANNELS; i++) {
@@ -313,7 +326,27 @@ void platform_audio_play_key(int key_idx)
     pthread_mutex_unlock(&audio_mutex);
 
     if(found_ch == -1) found_ch = 1;
-    play_sound_on_channel(found_ch, &key_wavs[key_idx], key_mix_volume / 100.0f);
+    play_sound_on_channel(found_ch, wav, key_mix_volume / 100.0f);
+}
+
+void platform_audio_override_key(int key_idx, const char * path)
+{
+    if(key_idx < 0 || key_idx >= PLATFORM_KEY_CAPACITY) return;
+    free_wav(&override_key_wavs[key_idx]);
+    if(path == NULL || path[0] == '\0') return;
+    override_key_wavs[key_idx] = load_wav_into_ram(path);
+}
+
+void platform_audio_clear_overrides(void)
+{
+    for(int i = 0; i < PLATFORM_KEY_CAPACITY; i++) {
+        free_wav(&override_key_wavs[i]);
+    }
+}
+
+void platform_audio_set_override_only(int enabled)
+{
+    override_only_mode = enabled ? 1 : 0;
 }
 
 void platform_audio_play_bgm(const char * path, float volume)

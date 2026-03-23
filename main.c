@@ -86,6 +86,8 @@ static lv_obj_t * login_active_ta = NULL;
 static lv_obj_t * login_pending_ta = NULL;
 static lv_obj_t * main_menu_win = NULL;
 static lv_obj_t * song_sel_win = NULL;
+static const char * piano_key_names[19];
+static int current_app_mode;
 
 typedef enum {
     PAGE_TITLE_LOGIN,
@@ -113,6 +115,12 @@ static int hidden_record_count = 0;
 static manage_kind_t current_manage_kind = MANAGE_KIND_NONE;
 static lv_obj_t * manage_overlay = NULL;
 static lv_obj_t * manage_popup = NULL;
+static char hidden_key_audio_paths[19][128];
+static lv_obj_t * hidden_replace_overlay = NULL;
+static lv_obj_t * hidden_replace_popup = NULL;
+static lv_obj_t * hidden_key_dd = NULL;
+static int hidden_key_option_map[19];
+static int hidden_key_option_count = 0;
 
 static void apply_page_bg(lv_obj_t * page) {
     lv_obj_set_style_bg_color(page, lv_color_hex(0xd4f0f0), 0);
@@ -169,7 +177,7 @@ static void ui_note_cleanup_cb(lv_timer_t * timer) {
     lv_timer_delete(timer);
 }
 
-static void show_ui_button_note(lv_obj_t * btn) {
+static void show_ui_note_at(int x, int y) {
     static const uint32_t note_colors[] = {
         0xF97316,
         0x22C55E,
@@ -184,21 +192,19 @@ static void show_ui_button_note(lv_obj_t * btn) {
         0x14B8A6,
         0x6366F1
     };
-    lv_area_t area;
     lv_obj_t * note = lv_label_create(lv_layer_top());
     int color_idx = rand() % (int)(sizeof(note_colors) / sizeof(note_colors[0]));
     int x_offset = (rand() % 19) - 9;
-    lv_obj_get_coords(btn, &area);
     lv_label_set_text(note, LV_SYMBOL_AUDIO);
     lv_obj_set_style_text_font(note, lv_theme_get_font_normal(NULL), 0);
     lv_obj_set_style_text_color(note, lv_color_hex(note_colors[color_idx]), 0);
     lv_obj_set_style_text_opa(note, 255, 0);
-    lv_obj_set_pos(note, area.x2 - 4 + x_offset, area.y1 - 8);
+    lv_obj_set_pos(note, x + x_offset, y);
 
     lv_anim_t y_anim;
     lv_anim_init(&y_anim);
     lv_anim_set_var(&y_anim, note);
-    lv_anim_set_values(&y_anim, area.y1 - 8, area.y1 - 34);
+    lv_anim_set_values(&y_anim, y, y - 26);
     lv_anim_set_time(&y_anim, 320);
     lv_anim_set_path_cb(&y_anim, lv_anim_path_ease_out);
     lv_anim_set_exec_cb(&y_anim, ui_note_float_y_cb);
@@ -216,15 +222,31 @@ static void show_ui_button_note(lv_obj_t * btn) {
     lv_timer_create(ui_note_cleanup_cb, 340, note);
 }
 
-static void ui_button_sound_cb(lv_event_t * e) {
+static void show_ui_button_note(lv_obj_t * btn) {
+    lv_area_t area;
+    lv_obj_get_coords(btn, &area);
+    show_ui_note_at(area.x2 - 4, area.y1 - 8);
+}
+
+static void play_random_ui_key_sound(void) {
     static const int playable_key_indices[] = {
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
         10, 11, 13, 14, 15, 17, 18
     };
-    lv_obj_t * btn = lv_event_get_target(e);
     int idx = rand() % (int)(sizeof(playable_key_indices) / sizeof(playable_key_indices[0]));
     platform_audio_play_key(playable_key_indices[idx]);
-    show_ui_button_note(btn);
+}
+
+static void trigger_ui_feedback(lv_obj_t * obj) {
+    if(current_app_mode != 4) {
+        play_random_ui_key_sound();
+    }
+    show_ui_button_note(obj);
+}
+
+static void ui_button_sound_cb(lv_event_t * e) {
+    lv_obj_t * btn = lv_event_get_target(e);
+    trigger_ui_feedback(btn);
 }
 
 static void attach_ui_button_sound(lv_obj_t * btn) {
@@ -377,6 +399,13 @@ static void create_manage_close_button(lv_obj_t * parent, lv_event_cb_t cb);
 static void create_manage_row(lv_obj_t * parent, const char * title_text, const char * filename, int hidden, manage_kind_t kind);
 static void load_manage_state(void);
 static void save_manage_state(void);
+static void hidden_feature_popup_timer_cb(lv_timer_t * timer);
+static void main_menu_secret_cb(lv_event_t * e);
+static void hidden_audio_assign_cb(lv_event_t * e);
+static void hidden_open_replace_cb(lv_event_t * e);
+static void hidden_close_replace_cb(lv_event_t * e);
+static void show_hidden_replace_popup(void);
+static void close_hidden_replace_popup(void);
 
 int register_user(const char* user, const char* pass) {
     FILE *f = fopen("users.txt", "r");
@@ -424,6 +453,19 @@ static void login_success_popup_timer_cb(lv_timer_t * timer) {
     if(login_win) { lv_obj_delete(login_win); login_win = NULL; }
     if(kb) { lv_obj_delete(kb); kb = NULL; }
     current_app_mode = 0;
+    create_piano_ui();
+    lv_timer_delete(timer);
+}
+
+static void hidden_feature_popup_timer_cb(lv_timer_t * timer) {
+    lv_obj_t * overlay = (lv_obj_t *)lv_timer_get_user_data(timer);
+    if(overlay) lv_obj_delete(overlay);
+    if(main_menu_win) { lv_obj_delete(main_menu_win); main_menu_win = NULL; }
+    current_app_mode = 4;
+    close_hidden_replace_popup();
+    platform_audio_clear_overrides();
+    platform_audio_set_override_only(1);
+    memset(hidden_key_audio_paths, 0, sizeof(hidden_key_audio_paths));
     create_piano_ui();
     lv_timer_delete(timer);
 }
@@ -499,6 +541,121 @@ static void close_manage_popup(void) {
     }
     manage_popup = NULL;
     current_manage_kind = MANAGE_KIND_NONE;
+}
+
+static void close_hidden_replace_popup(void) {
+    if(hidden_replace_overlay) {
+        lv_obj_delete(hidden_replace_overlay);
+        hidden_replace_overlay = NULL;
+    }
+    hidden_replace_popup = NULL;
+    hidden_key_dd = NULL;
+}
+
+static void hidden_close_replace_cb(lv_event_t * e) {
+    LV_UNUSED(e);
+    close_hidden_replace_popup();
+}
+
+static void hidden_open_replace_cb(lv_event_t * e) {
+    LV_UNUSED(e);
+    show_hidden_replace_popup();
+}
+
+static void show_hidden_replace_popup(void) {
+    if(current_app_mode != 4) return;
+    close_hidden_replace_popup();
+
+    hidden_replace_overlay = create_modal_overlay();
+    hidden_replace_popup = create_modal_card(hidden_replace_overlay, 520, 320);
+
+    lv_obj_t * title = lv_label_create(hidden_replace_popup);
+    lv_label_set_text(title, "替换琴键音色");
+    apply_title_visual(title, lv_color_hex(COLOR_TITLE));
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 12);
+
+    lv_obj_t * btn_close = lv_button_create(hidden_replace_popup);
+    lv_obj_set_size(btn_close, 32, 32);
+    lv_obj_align(btn_close, LV_ALIGN_TOP_RIGHT, 18, -18);
+    apply_danger_glass_button_style(btn_close);
+    lv_obj_set_style_radius(btn_close, 16, 0);
+    attach_ui_button_sound(btn_close);
+    lv_obj_add_event_cb(btn_close, hidden_close_replace_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t * lbl_close = lv_label_create(btn_close);
+    lv_label_set_text(lbl_close, LV_SYMBOL_CLOSE);
+    lv_obj_set_style_text_font(lbl_close, lv_theme_get_font_normal(NULL), 0);
+    lv_obj_set_style_text_color(lbl_close, lv_color_hex(0x7a2130), 0);
+    lv_obj_center(lbl_close);
+
+    lv_obj_t * lbl_key = lv_label_create(hidden_replace_popup);
+    lv_label_set_text(lbl_key, "目标琴键");
+    lv_obj_set_style_text_font(lbl_key, &my_font_full, 0);
+    lv_obj_set_style_text_color(lbl_key, lv_color_hex(COLOR_SUBTITLE), 0);
+    lv_obj_align(lbl_key, LV_ALIGN_TOP_LEFT, 28, 72);
+
+    hidden_key_dd = lv_dropdown_create(hidden_replace_popup);
+    lv_obj_set_size(hidden_key_dd, 180, 40);
+    lv_obj_align(hidden_key_dd, LV_ALIGN_TOP_LEFT, 120, 64);
+    lv_obj_set_style_text_font(hidden_key_dd, lv_theme_get_font_normal(NULL), 0);
+    lv_obj_set_style_text_color(hidden_key_dd, lv_color_hex(COLOR_SUBTITLE), 0);
+    lv_obj_set_style_bg_color(hidden_key_dd, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(hidden_key_dd, 220, 0);
+    lv_obj_set_style_border_color(hidden_key_dd, lv_color_hex(0xd5efea), 0);
+    lv_obj_set_style_radius(hidden_key_dd, 14, 0);
+
+    {
+        char options[512] = {0};
+        int first = 1;
+        hidden_key_option_count = 0;
+        for(int i = 0; i < 19; i++) {
+            const char * name = piano_key_names[i] ? piano_key_names[i] : "";
+            if(name[0] == '\0') continue;
+            hidden_key_option_map[hidden_key_option_count++] = i;
+            if(!first) strcat(options, "\n");
+            strcat(options, name);
+            first = 0;
+        }
+        lv_dropdown_set_options(hidden_key_dd, options);
+    }
+
+    lv_obj_t * lbl_audio = lv_label_create(hidden_replace_popup);
+    lv_label_set_text(lbl_audio, "选择音色");
+    lv_obj_set_style_text_font(lbl_audio, &my_font_full, 0);
+    lv_obj_set_style_text_color(lbl_audio, lv_color_hex(COLOR_SUBTITLE), 0);
+    lv_obj_align(lbl_audio, LV_ALIGN_TOP_LEFT, 28, 122);
+
+    lv_obj_t * list = lv_list_create(hidden_replace_popup);
+    lv_obj_set_size(list, 464, 150);
+    lv_obj_align(list, LV_ALIGN_TOP_MID, 0, 146);
+    lv_obj_set_style_bg_color(list, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(list, 160, 0);
+    lv_obj_set_style_border_color(list, lv_color_hex(0xd6efea), 0);
+    lv_obj_set_style_radius(list, 18, 0);
+
+    {
+        DIR * d = opendir("myaduio");
+        struct dirent * dir;
+        int item_count = 0;
+        if(d) {
+            while((dir = readdir(d)) != NULL) {
+                if(strstr(dir->d_name, ".wav")) {
+                    lv_obj_t * btn = lv_list_add_button(list, LV_SYMBOL_AUDIO, dir->d_name);
+                    fix_list_button_fonts(btn);
+                    attach_ui_button_sound(btn);
+                    lv_obj_add_event_cb(btn, hidden_audio_assign_cb, LV_EVENT_CLICKED, strdup(dir->d_name));
+                    item_count++;
+                }
+            }
+            closedir(d);
+        }
+        if(item_count == 0) {
+            lv_obj_t * empty = lv_label_create(list);
+            lv_label_set_text(empty, "myaduio 文件夹中暂无 wav 音频");
+            lv_obj_set_style_text_font(empty, &my_font_full, 0);
+            lv_obj_set_style_text_color(empty, lv_color_hex(COLOR_SUBTITLE), 0);
+        }
+    }
 }
 
 static void manage_close_cb(lv_event_t * e) {
@@ -843,7 +1000,6 @@ void create_login_ui(void) {
 static lv_obj_t * piano_win = NULL;
 static lv_timer_t * piano_timer = NULL;
 static lv_obj_t * piano_keys[19];
-static const char * piano_key_names[19];
 static int key_is_playing[19];
 static const char * default_key_names[19] = {
     "C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5", "D5", "E5",
@@ -854,7 +1010,7 @@ static const char * default_key_names[19] = {
 typedef struct { int key_idx; int hit_time_ms; } SongNote;
 typedef struct { lv_obj_t * obj; int target_key; int hit_time_ms; int is_active; } ActiveNote;
 
-static int current_app_mode = 0; // 0: FREE, 1: GUIDED, 2: AUTO, 3: RECORD
+static int current_app_mode = 0; // 0: FREE, 1: GUIDED, 2: AUTO, 3: RECORD, 4: HIDDEN
 static int game_score = 0;
 static int game_combo = 0;
 static int game_max_combo = 0;
@@ -873,6 +1029,9 @@ static lv_obj_t * guided_finish_popup = NULL;
 
 static ActiveNote active_notes[50];
 static int next_note_idx = 0;
+static int main_menu_secret_tap_count = 0;
+static uint32_t main_menu_secret_first_tap_tick = 0;
+static lv_obj_t * lbl_hidden_status = NULL;
 
 #define GUIDED_COUNTDOWN_MS 4000
 #define GUIDED_SONG_START_OFFSET_MS 1000
@@ -1647,6 +1806,12 @@ static void back_to_menu_cb(lv_event_t * e) {
     if(game_timer) { lv_timer_delete(game_timer); game_timer = NULL; }
     if(auto_play_timer) { lv_timer_delete(auto_play_timer); auto_play_timer = NULL; }
     if(piano_win) { lv_obj_delete(piano_win); piano_win = NULL; }
+    if(current_app_mode == 4) {
+        close_hidden_replace_popup();
+        platform_audio_set_override_only(0);
+        platform_audio_clear_overrides();
+        memset(hidden_key_audio_paths, 0, sizeof(hidden_key_audio_paths));
+    }
     
     is_recording = 0;
     btn_record_toggle = NULL;
@@ -1657,6 +1822,58 @@ static void back_to_menu_cb(lv_event_t * e) {
     platform_audio_stop_bgm();
 
     create_main_menu_ui();
+}
+
+static void main_menu_secret_cb(lv_event_t * e) {
+    if(lv_event_get_target(e) != main_menu_win) return;
+    if(main_menu_secret_tap_count == 0 ||
+       lv_tick_elaps(main_menu_secret_first_tap_tick) > 3000) {
+        main_menu_secret_tap_count = 0;
+        main_menu_secret_first_tap_tick = lv_tick_get();
+    }
+    {
+        lv_indev_t * indev = lv_event_get_indev(e);
+        lv_point_t p = {SCR_W / 2, SCR_H / 2};
+        if(indev) lv_indev_get_point(indev, &p);
+        play_random_ui_key_sound();
+        show_ui_note_at(p.x - 8, p.y - 12);
+    }
+    main_menu_secret_tap_count++;
+    if(main_menu_secret_tap_count >= 6) {
+        main_menu_secret_tap_count = 0;
+        main_menu_secret_first_tap_tick = 0;
+        show_timed_auth_popup("恭喜你发现了隐藏功能！", 900, hidden_feature_popup_timer_cb);
+    }
+}
+
+static void hidden_audio_assign_cb(lv_event_t * e) {
+    const char * filename = (const char *)lv_event_get_user_data(e);
+    int key_idx = -1;
+    if(hidden_key_dd == NULL) return;
+    uint32_t selected = lv_dropdown_get_selected(hidden_key_dd);
+    if(selected >= (uint32_t)hidden_key_option_count) {
+        return;
+    }
+    key_idx = hidden_key_option_map[selected];
+    if(key_idx < 0 || key_idx >= 19) return;
+    if(filename == NULL || filename[0] == '\0') return;
+
+    {
+        char path[160];
+        snprintf(path, sizeof(path), "myaduio/%s", filename);
+        platform_audio_override_key(key_idx, path);
+        snprintf(hidden_key_audio_paths[key_idx],
+                 sizeof(hidden_key_audio_paths[key_idx]),
+                 "%s", filename);
+    }
+
+    if(lbl_hidden_status && piano_key_names[key_idx]) {
+        char text[196];
+        snprintf(text, sizeof(text), "当前琴键 %s 已替换为 %s", piano_key_names[key_idx], filename);
+        lv_label_set_text(lbl_hidden_status, text);
+    }
+    platform_audio_play_key(key_idx);
+    close_hidden_replace_popup();
 }
 
 static void main_menu_btn_cb(lv_event_t * e) {
@@ -1985,11 +2202,61 @@ void create_main_menu_ui(void) {
     lv_obj_set_size(main_menu_win, 800, 480);
     lv_obj_center(main_menu_win);
     apply_page_bg(main_menu_win);
+    main_menu_secret_tap_count = 0;
+    lv_obj_add_event_cb(main_menu_win, main_menu_secret_cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t * title = lv_label_create(main_menu_win);
     lv_label_set_text(title, "应用大厅");
     apply_title_visual(title, lv_color_hex(COLOR_TITLE));
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
+
+    {
+        lv_obj_t * vol_btn = lv_button_create(main_menu_win);
+        lv_obj_set_size(vol_btn, 80, 80);
+        lv_obj_align(vol_btn, LV_ALIGN_TOP_RIGHT, -10, 10);
+        lv_obj_set_style_bg_opa(vol_btn, 0, 0);
+        lv_obj_set_style_border_width(vol_btn, 0, 0);
+        lv_obj_set_style_shadow_width(vol_btn, 0, 0);
+        lv_obj_add_event_cb(vol_btn, vol_icon_event_cb, LV_EVENT_CLICKED, NULL);
+
+        vol_icon = lv_label_create(vol_btn);
+        lv_label_set_text(vol_icon, LV_SYMBOL_VOLUME_MAX);
+        lv_obj_set_style_text_color(vol_icon, lv_color_hex(0x2c3e50), 0);
+        lv_obj_set_style_text_font(vol_icon, lv_theme_get_font_normal(NULL), 0);
+        lv_obj_center(vol_icon);
+
+        vol_panel = lv_obj_create(main_menu_win);
+        lv_obj_set_size(vol_panel, 170, 62);
+        lv_obj_align_to(vol_panel, vol_btn, LV_ALIGN_OUT_LEFT_TOP, -16, 0);
+        lv_obj_set_style_bg_color(vol_panel, lv_color_white(), 0);
+        lv_obj_set_style_bg_opa(vol_panel, 200, 0);
+        lv_obj_set_style_border_width(vol_panel, 1, 0);
+        lv_obj_set_style_border_color(vol_panel, lv_color_hex(0xe6faf6), 0);
+        lv_obj_set_style_radius(vol_panel, 18, 0);
+        lv_obj_set_style_shadow_color(vol_panel, lv_color_hex(0x7ab8b0), 0);
+        lv_obj_set_style_shadow_opa(vol_panel, 75, 0);
+        lv_obj_set_style_shadow_width(vol_panel, 20, 0);
+        lv_obj_set_style_pad_all(vol_panel, 10, 0);
+        lv_obj_remove_flag(vol_panel, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(vol_panel, LV_OBJ_FLAG_HIDDEN);
+
+        lv_obj_t * lbl_piano = lv_label_create(vol_panel);
+        lv_label_set_text(lbl_piano, "钢琴");
+        lv_obj_set_style_text_font(lbl_piano, &my_font_full, 0);
+        lv_obj_set_style_text_color(lbl_piano, lv_color_hex(COLOR_SUBTITLE), 0);
+        lv_obj_align(lbl_piano, LV_ALIGN_TOP_LEFT, 8, 8);
+
+        vol_slider_piano = lv_slider_create(vol_panel);
+        lv_slider_set_range(vol_slider_piano, 0, 100);
+        lv_slider_set_value(vol_slider_piano, piano_mix_volume, LV_ANIM_OFF);
+        lv_obj_set_size(vol_slider_piano, 96, 14);
+        lv_obj_align(vol_slider_piano, LV_ALIGN_TOP_RIGHT, -8, 10);
+        lv_obj_add_event_cb(vol_slider_piano, vol_slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+        vol_slider_bgm = NULL;
+        platform_audio_set_mix_volumes(piano_mix_volume, bgm_mix_volume);
+        update_volume_icon_state();
+    }
 
     lv_obj_t * btn_logout = lv_button_create(main_menu_win);
     lv_obj_set_size(btn_logout, 120, 40);
@@ -2112,6 +2379,10 @@ void create_piano_ui(void) {
         lv_label_set_text(title, current_song_title);
         apply_title_visual(title, lv_color_hex(COLOR_TITLE));
     }
+    else if(current_app_mode == 4) {
+        lv_label_set_text(title, "隐藏功能");
+        apply_title_visual(title, lv_color_hex(COLOR_TITLE));
+    }
     else if(current_app_mode == 2) set_page_title(title, PAGE_TITLE_AUTO_PLAY);
     else if(current_app_mode == 3) set_page_title(title, PAGE_TITLE_RECORD);
     else set_page_title(title, PAGE_TITLE_FREE_PLAY);
@@ -2181,6 +2452,36 @@ void create_piano_ui(void) {
     platform_audio_set_mix_volumes(piano_mix_volume, bgm_mix_volume);
     update_volume_icon_state();
 
+    if(current_app_mode == 4) {
+        lbl_hidden_status = lv_label_create(scr);
+        lv_label_set_text(lbl_hidden_status, "点击功能键进入音色替换");
+        lv_obj_set_style_text_font(lbl_hidden_status, &my_font_full, 0);
+        lv_obj_set_style_text_color(lbl_hidden_status, lv_color_hex(COLOR_SUBTITLE), 0);
+        lv_obj_align(lbl_hidden_status, LV_ALIGN_TOP_MID, 0, 72);
+
+        {
+            lv_obj_t * btn_hidden_manage = lv_button_create(scr);
+            lv_obj_set_size(btn_hidden_manage, 46, 46);
+            lv_obj_align(btn_hidden_manage, LV_ALIGN_TOP_RIGHT, -74, 18);
+            apply_glass_button_style(btn_hidden_manage);
+            lv_obj_set_style_radius(btn_hidden_manage, 23, 0);
+            attach_ui_button_sound(btn_hidden_manage);
+            lv_obj_add_event_cb(btn_hidden_manage, hidden_open_replace_cb, LV_EVENT_CLICKED, NULL);
+
+            for(int i = 0; i < 3; i++) {
+                lv_obj_t * line = lv_obj_create(btn_hidden_manage);
+                lv_obj_set_size(line, 18, 2);
+                lv_obj_set_style_bg_color(line, lv_color_hex(COLOR_SUBTITLE), 0);
+                lv_obj_set_style_bg_opa(line, 255, 0);
+                lv_obj_set_style_border_width(line, 0, 0);
+                lv_obj_set_style_radius(line, 1, 0);
+                lv_obj_align(line, LV_ALIGN_CENTER, 0, -6 + i * 6);
+                lv_obj_remove_flag(line, LV_OBJ_FLAG_SCROLLABLE);
+                lv_obj_clear_flag(line, LV_OBJ_FLAG_CLICKABLE);
+            }
+        }
+    }
+
     // ==== 打击游戏 UI 注入 ====
     if(current_app_mode == 1) {
         track_container = lv_obj_create(piano_win);
@@ -2221,10 +2522,11 @@ void create_piano_ui(void) {
         update_score_ui();
         update_guided_countdown_prompt();
         
-        // 按用户要求：彻底移除读取和播放伴奏的逻辑，仅保留音符下落和弹奏的交响音
+        // 跟弹开始前先播 4 秒倒计时提示音，随后在时间轴内切入正式伴奏
         platform_audio_stop_bgm();
         usleep(50000);
         platform_audio_clear_bgm();
+        platform_audio_play_bgm("bgm/begin.wav", 0.75f);
 
         game_timer = lv_timer_create(game_timer_cb, 10, NULL);
         
