@@ -122,6 +122,7 @@ static lv_obj_t * hidden_key_dd = NULL;
 static int hidden_key_option_map[19];
 static int hidden_key_option_count = 0;
 
+// 设置页面的背景样式：薄荷绿背景，无边框，不可滚动
 static void apply_page_bg(lv_obj_t * page) {
     lv_obj_set_style_bg_color(page, lv_color_hex(0xd4f0f0), 0);
     lv_obj_set_style_border_width(page, 0, 0);
@@ -129,6 +130,7 @@ static void apply_page_bg(lv_obj_t * page) {
     lv_obj_remove_flag(page, LV_OBJ_FLAG_SCROLLABLE);
 }
 
+// 应用“玻璃拟态(Glassmorphism)”按钮样式：白色半透明，带阴影和圆角
 static void apply_glass_button_style(lv_obj_t * btn) {
     lv_obj_set_style_bg_color(btn, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(btn, 90, 0);
@@ -146,6 +148,7 @@ static void apply_glass_button_style(lv_obj_t * btn) {
     lv_obj_set_style_text_color(btn, lv_color_hex(0x1f4f55), 0);
 }
 
+// 应用警示色（红色）的玻璃拟态按钮样式，用于“退出”或“删除”等操作
 static void apply_danger_glass_button_style(lv_obj_t * btn) {
     lv_obj_set_style_bg_color(btn, lv_color_hex(0xffd6da), 0);
     lv_obj_set_style_bg_opa(btn, 105, 0);
@@ -163,34 +166,29 @@ static void apply_danger_glass_button_style(lv_obj_t * btn) {
     lv_obj_set_style_text_color(btn, lv_color_hex(0x7a2130), 0);
 }
 
+// 动画回调：设置对象的 Y 轴坐标（用于音符漂浮效果）
 static void ui_note_float_y_cb(void * var, int32_t v) {
     lv_obj_set_y((lv_obj_t *)var, v);
 }
 
+// 动画回调：设置对象的透明度（用于音符渐隐效果）
 static void ui_note_float_opa_cb(void * var, int32_t v) {
     lv_obj_set_style_text_opa((lv_obj_t *)var, v, 0);
 }
 
+// 定时器回调：删除漂浮动画结束后的音符对象并清理定时器
 static void ui_note_cleanup_cb(lv_timer_t * timer) {
     lv_obj_t * note = (lv_obj_t *)lv_timer_get_user_data(timer);
     if(note) lv_obj_delete(note);
     lv_timer_delete(timer);
 }
 
+// 在指定坐标显示一个带上升渐隐动画的音乐符号图标
 static void show_ui_note_at(int x, int y) {
     static const uint32_t note_colors[] = {
-        0xF97316,
-        0x22C55E,
-        0x3B82F6,
-        0xEAB308,
-        0xEC4899,
-        0x8B5CF6,
-        0x06B6D4,
-        0xEF4444,
-        0x84CC16,
-        0xF59E0B,
-        0x14B8A6,
-        0x6366F1
+        0xF97316, 0x22C55E, 0x3B82F6, 0xEAB308, 0xEC4899,
+        0x8B5CF6, 0x06B6D4, 0xEF4444, 0x84CC16, 0xF59E0B,
+        0x14B8A6, 0x6366F1
     };
     lv_obj_t * note = lv_label_create(lv_layer_top());
     int color_idx = rand() % (int)(sizeof(note_colors) / sizeof(note_colors[0]));
@@ -201,6 +199,7 @@ static void show_ui_note_at(int x, int y) {
     lv_obj_set_style_text_opa(note, 255, 0);
     lv_obj_set_pos(note, x + x_offset, y);
 
+    // Y轴上升动画
     lv_anim_t y_anim;
     lv_anim_init(&y_anim);
     lv_anim_set_var(&y_anim, note);
@@ -210,6 +209,7 @@ static void show_ui_note_at(int x, int y) {
     lv_anim_set_exec_cb(&y_anim, ui_note_float_y_cb);
     lv_anim_start(&y_anim);
 
+    // 透明度渐隐动画
     lv_anim_t opa_anim;
     lv_anim_init(&opa_anim);
     lv_anim_set_var(&opa_anim, note);
@@ -222,12 +222,14 @@ static void show_ui_note_at(int x, int y) {
     lv_timer_create(ui_note_cleanup_cb, 340, note);
 }
 
+// 在按钮上方弹出一个漂浮的音符图标
 static void show_ui_button_note(lv_obj_t * btn) {
     lv_area_t area;
     lv_obj_get_coords(btn, &area);
     show_ui_note_at(area.x2 - 4, area.y1 - 8);
 }
 
+// 播放随机的钢琴按键音（用于界面交互反馈）
 static void play_random_ui_key_sound(void) {
     static const int playable_key_indices[] = {
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
@@ -237,6 +239,7 @@ static void play_random_ui_key_sound(void) {
     platform_audio_play_key(playable_key_indices[idx]);
 }
 
+// 触发界面的交互反馈：播放随机音效并显示漂浮音符
 static void trigger_ui_feedback(lv_obj_t * obj) {
     if(current_app_mode != 4) {
         play_random_ui_key_sound();
@@ -244,15 +247,18 @@ static void trigger_ui_feedback(lv_obj_t * obj) {
     show_ui_button_note(obj);
 }
 
+// 通用按钮按下时的声音反馈回调函数
 static void ui_button_sound_cb(lv_event_t * e) {
     lv_obj_t * btn = lv_event_get_target(e);
     trigger_ui_feedback(btn);
 }
 
+// 为按钮绑定按下时的声音反馈
 static void attach_ui_button_sound(lv_obj_t * btn) {
     lv_obj_add_event_cb(btn, ui_button_sound_cb, LV_EVENT_PRESSED, NULL);
 }
 
+// 创建一个通用的“返回大厅”按钮
 static lv_obj_t * create_back_button(lv_obj_t * parent, lv_event_cb_t cb) {
     lv_obj_t * btn = lv_button_create(parent);
     lv_obj_set_size(btn, 120, 40);
@@ -269,6 +275,7 @@ static lv_obj_t * create_back_button(lv_obj_t * parent, lv_event_cb_t cb) {
     return btn;
 }
 
+// 应用标题的视觉风格：设置颜色、字体及放大缩放效果
 static void apply_title_visual(lv_obj_t * label, lv_color_t color) {
     lv_obj_set_style_text_color(label, color, 0);
     lv_obj_set_style_text_font(label, &my_font_full, 0);
@@ -278,6 +285,7 @@ static void apply_title_visual(lv_obj_t * label, lv_color_t color) {
     lv_obj_set_style_pad_all(label, 6, 0);
 }
 
+// 设置当前页面的标题文字
 static void set_page_title(lv_obj_t * label, page_title_t title_kind) {
     const char * text = "";
     switch(title_kind) {
@@ -298,6 +306,7 @@ static void set_page_title(lv_obj_t * label, page_title_t title_kind) {
     lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 20);
 }
 
+// 修正列表按钮的字体：确保第一个孩子（通常是图标）使用系统默认字体，后续文字使用全量中文字库
 static void fix_list_button_fonts(lv_obj_t * btn) {
     uint32_t child_count = lv_obj_get_child_count(btn);
     for(uint32_t i = 0; i < child_count; i++) {
@@ -310,6 +319,7 @@ static void fix_list_button_fonts(lv_obj_t * btn) {
     }
 }
 
+// 检查某个项目（曲目或录音）是否在隐藏名单中
 static int is_hidden_item(const char hidden_items[][128], int hidden_count, const char * name) {
     for(int i = 0; i < hidden_count; i++) {
         if(strcmp(hidden_items[i], name) == 0) return 1;
@@ -317,6 +327,7 @@ static int is_hidden_item(const char hidden_items[][128], int hidden_count, cons
     return 0;
 }
 
+// 切换某个项目的隐藏状态：如果在名单中就移除，不在则添加
 static void toggle_hidden_item(char hidden_items[][128], int * hidden_count, const char * name) {
     for(int i = 0; i < *hidden_count; i++) {
         if(strcmp(hidden_items[i], name) == 0) {
@@ -334,14 +345,17 @@ static void toggle_hidden_item(char hidden_items[][128], int * hidden_count, con
     }
 }
 
+// 检查跟弹曲目是否被隐藏
 static int is_guided_song_hidden(const char * name) {
     return is_hidden_item(hidden_guided_items, hidden_guided_count, name);
 }
 
+// 检查录制曲目是否被隐藏
 static int is_record_hidden(const char * name) {
     return is_hidden_item(hidden_record_items, hidden_record_count, name);
 }
 
+// 从配置文件中加载隐藏项目列表
 static void load_hidden_items(const char * path, char hidden_items[][128], int * hidden_count) {
     FILE * f = fopen(path, "r");
     char line[160];
@@ -361,6 +375,7 @@ static void load_hidden_items(const char * path, char hidden_items[][128], int *
     fclose(f);
 }
 
+// 将隐藏项目列表保存到配置文件中
 static void save_hidden_items(const char * path, char hidden_items[][128], int hidden_count) {
     FILE * f = fopen(path, "w");
     if(!f) return;
@@ -370,12 +385,14 @@ static void save_hidden_items(const char * path, char hidden_items[][128], int h
     fclose(f);
 }
 
+// 加载所有管理状态（曲目和录音的隐藏配置）
 static void load_manage_state(void) {
     mkdir("config", 0777);
     load_hidden_items("config/guided_hidden.cfg", hidden_guided_items, &hidden_guided_count);
     load_hidden_items("config/records_hidden.cfg", hidden_record_items, &hidden_record_count);
 }
 
+// 保存所有管理状态到文件系统
 static void save_manage_state(void) {
     mkdir("config", 0777);
     save_hidden_items("config/guided_hidden.cfg", hidden_guided_items, hidden_guided_count);
@@ -407,6 +424,7 @@ static void hidden_close_replace_cb(lv_event_t * e);
 static void show_hidden_replace_popup(void);
 static void close_hidden_replace_popup(void);
 
+// 注册新用户：检查用户名是否已存在，若不存在则追加到 users.txt
 int register_user(const char* user, const char* pass) {
     FILE *f = fopen("users.txt", "r");
     if(f) {
@@ -423,6 +441,7 @@ int register_user(const char* user, const char* pass) {
     return 0;
 }
 
+// 检查登录：从 users.txt 中查找匹配的用户名和密码
 int check_login(const char* user, const char* pass) {
     FILE *f = fopen("users.txt", "r");
     if(!f) return 0;
@@ -436,17 +455,20 @@ int check_login(const char* user, const char* pass) {
     return 0;
 }
 
+// 错误弹窗关闭回调：删除整个弹窗容器
 static void close_err_cb(lv_event_t * e) {
     lv_obj_t * popup = lv_event_get_user_data(e);
     lv_obj_delete(popup);
 }
 
+// 验证弹窗定时器回调：自动删除弹窗遮罩
 static void auth_popup_timer_cb(lv_timer_t * timer) {
     lv_obj_t * overlay = (lv_obj_t *)lv_timer_get_user_data(timer);
     if(overlay) lv_obj_delete(overlay);
     lv_timer_delete(timer);
 }
 
+// 登录成功后的处理：删除登录界面并初始化钢琴界面
 static void login_success_popup_timer_cb(lv_timer_t * timer) {
     lv_obj_t * overlay = (lv_obj_t *)lv_timer_get_user_data(timer);
     if(overlay) lv_obj_delete(overlay);
@@ -457,6 +479,7 @@ static void login_success_popup_timer_cb(lv_timer_t * timer) {
     lv_timer_delete(timer);
 }
 
+// 触发隐藏功能（音色替换）的定时器回调：进入隐藏模式并重置音效状态
 static void hidden_feature_popup_timer_cb(lv_timer_t * timer) {
     lv_obj_t * overlay = (lv_obj_t *)lv_timer_get_user_data(timer);
     if(overlay) lv_obj_delete(overlay);
@@ -470,6 +493,7 @@ static void hidden_feature_popup_timer_cb(lv_timer_t * timer) {
     lv_timer_delete(timer);
 }
 
+// 创建一个模态对话框的半透明背景遮罩
 static lv_obj_t * create_modal_overlay(void) {
     lv_obj_t * overlay = lv_obj_create(lv_screen_active());
     lv_obj_remove_style_all(overlay);
@@ -481,6 +505,7 @@ static lv_obj_t * create_modal_overlay(void) {
     return overlay;
 }
 
+// 创建一个模态对话框的卡片容器：带圆角、阴影和磨砂感的背景
 static lv_obj_t * create_modal_card(lv_obj_t * parent, lv_coord_t w, lv_coord_t h) {
     lv_obj_t * card = lv_obj_create(parent);
     lv_obj_set_size(card, w, h);
@@ -497,6 +522,7 @@ static lv_obj_t * create_modal_card(lv_obj_t * parent, lv_coord_t w, lv_coord_t 
     return card;
 }
 
+// 显示一个通用的验证提示或错误弹窗，带有一个关闭按钮
 static void show_auth_popup(const char * message) {
     lv_obj_t * overlay = create_modal_overlay();
     lv_obj_t * popup = create_modal_card(overlay, 400, 210);
@@ -521,6 +547,7 @@ static void show_auth_popup(const char * message) {
     lv_obj_center(blabel);
 }
 
+// 显示一个带定时自动关闭功能的验证弹窗（例如“登录中...”或“注册中...”）
 static void show_timed_auth_popup(const char * message, uint32_t delay_ms, lv_timer_cb_t timer_cb) {
     lv_obj_t * overlay = create_modal_overlay();
     lv_obj_t * popup = create_modal_card(overlay, 400, 170);
@@ -534,6 +561,7 @@ static void show_timed_auth_popup(const char * message, uint32_t delay_ms, lv_ti
     lv_timer_create(timer_cb ? timer_cb : auth_popup_timer_cb, delay_ms, overlay);
 }
 
+// 关闭资源管理弹窗并清理其遮罩
 static void close_manage_popup(void) {
     if(manage_overlay) {
         lv_obj_delete(manage_overlay);
@@ -543,6 +571,7 @@ static void close_manage_popup(void) {
     current_manage_kind = MANAGE_KIND_NONE;
 }
 
+// 关闭音色替换弹窗并重置其下拉列表对象
 static void close_hidden_replace_popup(void) {
     if(hidden_replace_overlay) {
         lv_obj_delete(hidden_replace_overlay);
@@ -552,16 +581,19 @@ static void close_hidden_replace_popup(void) {
     hidden_key_dd = NULL;
 }
 
+// 隐藏音色替换弹窗的关闭按钮回调
 static void hidden_close_replace_cb(lv_event_t * e) {
     LV_UNUSED(e);
     close_hidden_replace_popup();
 }
 
+// 打开音色替换弹窗的按钮回调
 static void hidden_open_replace_cb(lv_event_t * e) {
     LV_UNUSED(e);
     show_hidden_replace_popup();
 }
 
+// 显示音色替换的功能弹窗：选择琴键并从 myaduio 目录选择 WAV 进行替换
 static void show_hidden_replace_popup(void) {
     if(current_app_mode != 4) return;
     close_hidden_replace_popup();
@@ -658,16 +690,19 @@ static void show_hidden_replace_popup(void) {
     }
 }
 
+// 资源管理主窗口的关闭按钮回调
 static void manage_close_cb(lv_event_t * e) {
     LV_UNUSED(e);
     close_manage_popup();
 }
 
+// 点击设置/管理按钮触发的回调：显示资源管理主菜单
 static void manage_entry_cb(lv_event_t * e) {
     LV_UNUSED(e);
     show_manage_home_popup();
 }
 
+// 资源管理主菜单的选项点击回调：切换到具体的歌曲或录音管理列表
 static void manage_home_action_cb(lv_event_t * e) {
     intptr_t action = (intptr_t)lv_event_get_user_data(e);
     if(action == 1) show_manage_list_popup(MANAGE_KIND_GUIDED);
@@ -675,11 +710,13 @@ static void manage_home_action_cb(lv_event_t * e) {
     else close_manage_popup();
 }
 
+// 从具体管理列表返回到管理主页的回调
 static void manage_list_back_cb(lv_event_t * e) {
     LV_UNUSED(e);
     show_manage_home_popup();
 }
 
+// 在管理列表中切换单个项目的“显示/隐藏”状态的回调
 static void manage_toggle_item_cb(lv_event_t * e) {
     const char * payload = (const char *)lv_event_get_user_data(e);
     manage_kind_t kind = payload[0] == '1' ? MANAGE_KIND_GUIDED : MANAGE_KIND_RECORD;
@@ -692,6 +729,7 @@ static void manage_toggle_item_cb(lv_event_t * e) {
     show_manage_list_popup(kind);
 }
 
+// 为管理类弹窗创建一个通用的关闭按钮（带有 × 符号）
 static void create_manage_close_button(lv_obj_t * parent, lv_event_cb_t cb) {
     lv_obj_t * btn_close = lv_button_create(parent);
     lv_obj_set_size(btn_close, 32, 32);
@@ -710,6 +748,7 @@ static void create_manage_close_button(lv_obj_t * parent, lv_event_cb_t cb) {
     lv_obj_center(lbl_close);
 }
 
+// 在管理列表中创建一行项目：包含项目名称和“添加/删除(显示/隐藏)”操作按钮
 static void create_manage_row(lv_obj_t * parent, const char * title_text, const char * filename, int hidden, manage_kind_t kind) {
     lv_obj_t * row = lv_obj_create(parent);
     lv_obj_set_size(row, 390, 58);
@@ -747,6 +786,7 @@ static void create_manage_row(lv_obj_t * parent, const char * title_text, const 
     lv_obj_center(action_label);
 }
 
+// 显示资源管理的主页面弹窗
 static void show_manage_home_popup(void) {
     close_manage_popup();
     manage_overlay = create_modal_overlay();
@@ -784,6 +824,7 @@ static void show_manage_home_popup(void) {
     create_manage_close_button(manage_popup, manage_close_cb);
 }
 
+// 显示具体的资源列表管理页面（扫描 music 或 records 目录）
 static void show_manage_list_popup(manage_kind_t kind) {
     close_manage_popup();
     current_manage_kind = kind;
@@ -849,6 +890,7 @@ static void show_manage_list_popup(manage_kind_t kind) {
     }
 }
 
+// 登录页面按钮回调：处理登录和注册逻辑
 static void login_btn_cb(lv_event_t * e) {
     intptr_t action = (intptr_t)lv_event_get_user_data(e);
     const char * u = lv_textarea_get_text(ta_user);
@@ -860,14 +902,14 @@ static void login_btn_cb(lv_event_t * e) {
         return;
     }
     
-    if(action == 1) { // Login
+    if(action == 1) { // 登录
         if(check_login(u, p)) {
             printf("[Login] Validation Success for %s!\n", u);
             show_timed_auth_popup("登录成功！", 900, login_success_popup_timer_cb);
         } else {
             show_auth_popup("登录失败，账号或密码错误！");
         }
-    } else if(action == 2) { // Register
+    } else if(action == 2) { // 注册
         if(register_user(u, p)) {
             printf("[Register] Success: %s\n", u);
             show_timed_auth_popup("注册成功！", 900, auth_popup_timer_cb);
@@ -878,6 +920,7 @@ static void login_btn_cb(lv_event_t * e) {
     }
 }
 
+// 隐藏登录页面的软键盘（除指定的 TA 外）
 static void hide_login_keyboard_except(lv_obj_t * keep_ta) {
     if(kb != NULL) {
         lv_obj_delete(kb);
@@ -888,6 +931,7 @@ static void hide_login_keyboard_except(lv_obj_t * keep_ta) {
     login_active_ta = keep_ta;
 }
 
+// 为指定的文本框(TextArea)显示登录软键盘
 static void show_login_keyboard(lv_obj_t * ta) {
     if(ta == NULL) return;
     if(kb != NULL) {
@@ -899,6 +943,7 @@ static void show_login_keyboard(lv_obj_t * ta) {
     login_active_ta = ta;
 }
 
+// 延时重新开启键盘的回调（解决输入框切换时的焦点抖动问题）
 static void reopen_login_keyboard_cb(lv_timer_t * timer) {
     lv_obj_t * ta = (lv_obj_t *)lv_timer_get_user_data(timer);
     if(ta != NULL) {
@@ -909,6 +954,7 @@ static void reopen_login_keyboard_cb(lv_timer_t * timer) {
     lv_timer_delete(timer);
 }
 
+// 点击登录界面背景时关闭键盘
 static void login_bg_event_cb(lv_event_t * e) {
     lv_obj_t * target = lv_event_get_target(e);
     if(target == ta_user || target == ta_pass || target == kb) return;
@@ -916,6 +962,7 @@ static void login_bg_event_cb(lv_event_t * e) {
     hide_login_keyboard_except(NULL);
 }
 
+// 登录框文本框的焦点/就绪事件处理：控制键盘的显示与隐藏
 static void ta_event_cb(lv_event_t * e) {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t * ta = lv_event_get_target(e);
@@ -936,6 +983,7 @@ static void ta_event_cb(lv_event_t * e) {
     }
 }
 
+// 创建登录界面：初始化标题、用户名密码框及登录注册按钮
 void create_login_ui(void) {
     login_win = lv_obj_create(lv_screen_active());
     lv_obj_set_size(login_win, 800, 480);
@@ -1454,30 +1502,36 @@ void init_audio_mixer_once() {
 #endif
 #endif
 
+// 更新得分和连击数的 UI 显示
 static void update_score_ui() {
     if(lbl_score) lv_label_set_text_fmt(lbl_score, "Score: %d    Combo: %d", game_score, game_combo);
 }
 
+// 倒计时动画回调：设置旋转角度
 static void guided_countdown_rotation_anim_cb(void * var, int32_t v) {
     lv_obj_set_style_transform_rotation((lv_obj_t *)var, v, 0);
 }
 
+// 倒计时动画回调：设置缩放大小
 static void guided_countdown_zoom_anim_cb(void * var, int32_t v) {
     lv_obj_set_style_transform_zoom((lv_obj_t *)var, v, 0);
 }
 
+// 判定成功后删除音符对象的定时器回调
 static void guided_hit_note_delete_cb(lv_timer_t * timer) {
     lv_obj_t * note_obj = (lv_obj_t *)lv_timer_get_user_data(timer);
     if(note_obj) lv_obj_delete(note_obj);
     lv_timer_delete(timer);
 }
 
+// 隐藏判定结果（Perfect/Good）文字的定时器回调
 static void guided_hide_judgement_cb(lv_timer_t * timer) {
     LV_UNUSED(timer);
     if(guided_judgement_label) lv_obj_add_flag(guided_judgement_label, LV_OBJ_FLAG_HIDDEN);
     lv_timer_delete(timer);
 }
 
+// 在屏幕中心显示判定结果（Perfect/Good）
 static void show_guided_judgement(int is_perfect) {
     if(guided_judgement_label == NULL) return;
 
@@ -1502,12 +1556,14 @@ static void auto_finish_popup_delay_cb(lv_timer_t * timer) {
     lv_timer_delete(timer);
 }
 
+// 歌曲播放完成后的延时处理：加载曲谱并切换到钢琴界面
 static void delayed_song_start_cb(lv_timer_t * timer) {
     char * filename = (char *)lv_timer_get_user_data(timer);
     if(filename) {
         current_song_map = empty_map;
         snprintf(current_song_filename, sizeof(current_song_filename), "%s", filename);
         snprintf(current_song_title, sizeof(current_song_title), "%s", filename);
+        // 在内置曲库中寻找匹配的键位图
         for(int i = 0; song_db[i].filename; i++) {
             if(strcmp(song_db[i].filename, filename) == 0) {
                 current_song_map = song_db[i].notes;
@@ -1530,16 +1586,19 @@ static void delayed_auto_play_start_cb(lv_timer_t * timer) {
     lv_timer_delete(timer);
 }
 
+// 尝试判断用户是否在正确的时间按下了正确的键（跟弹碰撞检测）
 static int try_guided_hit_for_key(int key_idx, int guided_song_time_ms) {
     for(int j = 0; j < 50; j++) {
         if(active_notes[j].is_active && active_notes[j].target_key == key_idx) {
             int diff = guided_song_time_ms - active_notes[j].hit_time_ms;
+            // 判定区间：正负 260 毫秒内
             if(diff >= -260 && diff <= 260) {
                 int is_perfect = (diff >= -90 && diff <= 90);
                 game_score += 10;
                 game_combo += 1;
                 if(game_combo > game_max_combo) game_max_combo = game_combo;
 
+                // 视觉反馈：改变下落音符的颜色
                 lv_obj_set_style_bg_color(active_notes[j].obj,
                                           lv_color_hex(is_perfect ? 0x166534 : 0xFACC15), 0);
                 show_guided_judgement(is_perfect);
@@ -1553,12 +1612,14 @@ static int try_guided_hit_for_key(int key_idx, int guided_song_time_ms) {
     return 0;
 }
 
+// 检查当前是否有悬浮弹窗（会阻塞钢琴按键）
 static int has_blocking_popup(void) {
     return guided_finish_popup != NULL ||
            auto_finish_popup != NULL ||
            manage_popup != NULL;
 }
 
+// 更新跟弹开始前的“3、2、1、开始”倒计时提示
 static void update_guided_countdown_prompt(void) {
     static const char * texts[] = {"3", "2", "1", "开始"};
     static const uint32_t colors[] = {0x22C55E, 0xEAB308, 0xF97316, 0xEF4444};
@@ -1585,11 +1646,10 @@ static void update_guided_countdown_prompt(void) {
     lv_obj_set_style_text_font(guided_countdown_label, &my_font_full, 0);
     lv_obj_set_style_transform_zoom(guided_countdown_label, 260, 0);
     lv_obj_set_style_transform_rotation(guided_countdown_label, 0, 0);
-    lv_obj_set_style_transform_pivot_x(guided_countdown_label, 0, 0);
-    lv_obj_set_style_transform_pivot_y(guided_countdown_label, 0, 0);
     lv_obj_clear_flag(guided_countdown_label, LV_OBJ_FLAG_HIDDEN);
     lv_obj_align(guided_countdown_label, LV_ALIGN_CENTER, 0, 24);
 
+    // 缩放动画
     lv_anim_t zoom_anim;
     lv_anim_init(&zoom_anim);
     lv_anim_set_var(&zoom_anim, guided_countdown_label);
@@ -1600,6 +1660,7 @@ static void update_guided_countdown_prompt(void) {
     lv_anim_set_exec_cb(&zoom_anim, guided_countdown_zoom_anim_cb);
     lv_anim_start(&zoom_anim);
 
+    // 抖动动画
     lv_anim_t shake_anim;
     lv_anim_init(&shake_anim);
     lv_anim_set_var(&shake_anim, guided_countdown_label);
@@ -1612,6 +1673,7 @@ static void update_guided_countdown_prompt(void) {
     lv_anim_start(&shake_anim);
 }
 
+// 打击游戏核心定时器：处理音符生成、下落、Miss判定以及结算触发
 static void game_timer_cb(lv_timer_t * timer) {
     LV_UNUSED(timer);
     uint32_t current_tick = lv_tick_get();
@@ -1620,11 +1682,11 @@ static void game_timer_cb(lv_timer_t * timer) {
     int has_active_notes = 0;
     int song_time_ms = 0;
 
-    // 回退：移除底层强同步，恢复简单的视觉计时。并且彻底移除伴奏播放。
     game_time_ms += dt;
     update_guided_countdown_prompt();
     song_time_ms = game_time_ms - GUIDED_SONG_START_OFFSET_MS;
 
+    // 播放伴奏 BGM
     if(!game_bgm_started && current_song_filename[0] != '\0' && song_time_ms >= -500) {
         char bgm_path[192];
         snprintf(bgm_path, sizeof(bgm_path), "music/%s", current_song_filename);
@@ -1632,7 +1694,7 @@ static void game_timer_cb(lv_timer_t * timer) {
         game_bgm_started = 1;
     }
 
-    // 1. Spawning logic (修改为提前 2000ms 生成，放慢一倍的掉落速度！)
+    // 1. 音符生成逻辑：提前 2 秒生成下落音符
     while(current_song_map && current_song_map[next_note_idx].key_idx != -1) {
         int spawn_time = current_song_map[next_note_idx].hit_time_ms - 2000;
         if(song_time_ms >= spawn_time) {
@@ -1642,7 +1704,7 @@ static void game_timer_cb(lv_timer_t * timer) {
                     active_notes[i].target_key = current_song_map[next_note_idx].key_idx;
                     active_notes[i].hit_time_ms = current_song_map[next_note_idx].hit_time_ms;
                     
-                    lv_obj_t * note_obj = lv_obj_create(track_container); // 在音轨区生成下落音符
+                    lv_obj_t * note_obj = lv_obj_create(track_container);
                     int is_black = active_notes[i].target_key >= 10;
                     if(!is_black) {
                         lv_obj_set_size(note_obj, 76, 30);
@@ -1666,19 +1728,19 @@ static void game_timer_cb(lv_timer_t * timer) {
             }
             next_note_idx++;
         } else {
-            break; // 还没到生成时间
+            break;
         }
     }
 
-    // 2. Movement logic
+    // 2. 音符下落移动逻辑
     for(int i=0; i<50; i++) {
         if(active_notes[i].is_active) {
             has_active_notes = 1;
             int time_alive = song_time_ms - (active_notes[i].hit_time_ms - 2000);
-            int y = time_alive * 272 / 2000; // 降低速度：2秒钟从 0 掉落到 272
+            int y = time_alive * 272 / 2000; // 2秒钟内下落到底部
             lv_obj_set_y(active_notes[i].obj, y);
             
-            // 如果掉出了屏幕还没被打中（Miss判定）
+            // Miss 判定：完全越过打击线
             if(y > 320) { 
                 lv_obj_delete(active_notes[i].obj);
                 active_notes[i].is_active = 0;
@@ -1688,6 +1750,7 @@ static void game_timer_cb(lv_timer_t * timer) {
         }
     }
 
+    // 3. 结算逻辑：曲中所有音符都已生成且清理完毕
     if(current_song_map &&
        current_song_map[next_note_idx].key_idx == -1 &&
        !has_active_notes) {
@@ -1702,12 +1765,14 @@ static void game_timer_cb(lv_timer_t * timer) {
 
 // 核心抛弃 LV_EVENT 事件系统，改为底层高频轮询的 Timer。
 // 完全解决了按键不回弹的问题以及实现了单点无缝滑动机制（滑音）！
+// 钢琴核心扫描定时器：以 10ms 的高频检查所有触摸点，处理多点触控与滑音
 static void piano_scan_timer_cb(lv_timer_t * timer) {
     int hits[19] = {0};
     const platform_touch_point_t * touch_points = platform_get_touch_points();
 
     LV_UNUSED(timer);
 
+    // 如果有遮罩弹窗，则清空所有按键按下状态并返回
     if(has_blocking_popup()) {
         for(int k = 0; k < 19; k++) {
             if(piano_keys[k] == NULL) continue;
@@ -1719,19 +1784,19 @@ static void piano_scan_timer_cb(lv_timer_t * timer) {
         return;
     }
     
-    // 我们遍历单个手指的落点
+    // 1. 坐标碰撞检测：遍历每个手指的触摸坐标，锁定它所在的琴键
     for(int i=0; i<PLATFORM_MAX_TOUCH; i++) {
-        if(touch_points[i].state == 1) {
+        if(touch_points[i].state == 1) { // 正在按下或移动
             lv_point_t p = {touch_points[i].x, touch_points[i].y};
             int hit_idx = -1;
-            // 先判定层级较高的黑键（索引 10 到 18）
+            // 优先检测层级较高的黑键
             for(int k=18; k>=0; k--) {
                 if(piano_keys[k] != NULL && !lv_obj_has_flag(piano_keys[k], LV_OBJ_FLAG_HIDDEN)) {
                     lv_area_t area;
                     lv_obj_get_coords(piano_keys[k], &area);
                     if(p.x >= area.x1 && p.x <= area.x2 && p.y >= area.y1 && p.y <= area.y2) {
                         hit_idx = k; 
-                        break; // 找到了所在的键，结束该手指对其他键的搜查
+                        break; 
                     }
                 }
             }
@@ -1739,18 +1804,16 @@ static void piano_scan_timer_cb(lv_timer_t * timer) {
         }
     }
     
-    // 更新所有的琴键状态并下发播放命令
+    // 2. 根据检测结果更新按键状态及发音
     for(int k=0; k<19; k++) {
         if(piano_keys[k] == NULL) continue;
         if(hits[k] && !key_is_playing[k]) {
-            // 这个键刚刚被任一手指按下或者滑到了！
+            // 新按下逻辑
             key_is_playing[k] = 1;
             lv_obj_add_state(piano_keys[k], LV_STATE_PRESSED);
+            platform_audio_play_key(k); // 触发底层音频播放
             
-            // 全局零延迟发音（伴随软件混叠，无论自由弹琴还是伴奏模式都能出声）
-            platform_audio_play_key(k);
-            
-            if(current_app_mode == 3 && is_recording) { // Recording Mode
+            if(current_app_mode == 3 && is_recording) { // 录制模式记录
                 if(record_start_tick == 0) {
                     record_start_tick = lv_tick_get();
                     if(lbl_record_status) lv_label_set_text(lbl_record_status, "录音进行中!");
@@ -1760,21 +1823,23 @@ static void piano_scan_timer_cb(lv_timer_t * timer) {
                     recorded_buffer[record_note_count].hit_time_ms = lv_tick_get() - record_start_tick;
                     record_note_count++;
                 }
-            } else if(current_app_mode == 1) { // Guided learning mode
+            } else if(current_app_mode == 1) { // 跟弹模式判定
                 int guided_song_time_ms = game_time_ms - GUIDED_SONG_START_OFFSET_MS;
                 (void)try_guided_hit_for_key(k, guided_song_time_ms);
             }
         } else if(hits[k] && current_app_mode == 1) {
+            // 滑动保持判定（防止滑音过程中跳位导致 Miss）
             int guided_song_time_ms = game_time_ms - GUIDED_SONG_START_OFFSET_MS;
             (void)try_guided_hit_for_key(k, guided_song_time_ms);
         } else if(!hits[k] && key_is_playing[k]) {
-            // 这个键被所有手指松开或者手指滑出了它的范围（完美实现自动回弹）
+            // 松开按键
             key_is_playing[k] = 0;
             lv_obj_remove_state(piano_keys[k], LV_STATE_PRESSED);
         }
     }
 }
 
+// 根据当前全局音量大小更新音量图标（静音/低/高）
 static void update_volume_icon_state(void) {
     int max_volume = (current_app_mode == 1 && piano_mix_volume < bgm_mix_volume) ? bgm_mix_volume : piano_mix_volume;
     if(max_volume == 0) lv_label_set_text(vol_icon, LV_SYMBOL_MUTE);
@@ -1782,6 +1847,7 @@ static void update_volume_icon_state(void) {
     else lv_label_set_text(vol_icon, LV_SYMBOL_VOLUME_MAX);
 }
 
+// 音量控制滑块的回调函数：同步更新混音音量
 static void vol_slider_event_cb(lv_event_t * e) {
     lv_obj_t * slider = lv_event_get_target(e);
 
@@ -1801,11 +1867,13 @@ static void vol_icon_event_cb(lv_event_t * e) {
     }
 }
 
+// “返回大厅”按钮的回调：销毁钢琴界面并重置状态，回到主菜单
 static void back_to_menu_cb(lv_event_t * e) {
     if(piano_timer) { lv_timer_delete(piano_timer); piano_timer = NULL; }
     if(game_timer) { lv_timer_delete(game_timer); game_timer = NULL; }
     if(auto_play_timer) { lv_timer_delete(auto_play_timer); auto_play_timer = NULL; }
     if(piano_win) { lv_obj_delete(piano_win); piano_win = NULL; }
+    // 退出隐藏功能模式时清理覆盖设置
     if(current_app_mode == 4) {
         close_hidden_replace_popup();
         platform_audio_set_override_only(0);
@@ -1824,6 +1892,7 @@ static void back_to_menu_cb(lv_event_t * e) {
     create_main_menu_ui();
 }
 
+// 主菜单背景触发隐藏功能的“秘密”回调：连点 6 次背景进入隐藏页面
 static void main_menu_secret_cb(lv_event_t * e) {
     if(lv_event_get_target(e) != main_menu_win) return;
     if(main_menu_secret_tap_count == 0 ||
@@ -1846,6 +1915,7 @@ static void main_menu_secret_cb(lv_event_t * e) {
     }
 }
 
+// 隐藏功能：将新的音色文件指定给选中的琴键
 static void hidden_audio_assign_cb(lv_event_t * e) {
     const char * filename = (const char *)lv_event_get_user_data(e);
     int key_idx = -1;
@@ -1873,23 +1943,27 @@ static void hidden_audio_assign_cb(lv_event_t * e) {
         lv_label_set_text(lbl_hidden_status, text);
     }
 
-    // Immediately update the label on the piano key
+    // 立即更新琴键上的显示文字：去除 .wav 后缀并显示文件名
     if(piano_keys[key_idx]) {
+        // 获取琴键按钮的第一个子对象，即标签(Label)
         lv_obj_t * label = lv_obj_get_child(piano_keys[key_idx], 0);
         if(label) {
             char clean_name[128];
             snprintf(clean_name, sizeof(clean_name), "%s", filename);
+            // 查找并去掉 .wav 后缀
             char * dot = strstr(clean_name, ".wav");
             if(dot) *dot = '\0';
             lv_label_set_text(label, clean_name);
+            // 确保使用支持中文的全量字库，以便显示自定义文件名
             lv_obj_set_style_text_font(label, &my_font_full, 0);
         }
     }
 
-    platform_audio_play_key(key_idx);
+    platform_audio_play_key(key_idx); // 播放一下新音色进行确认
     close_hidden_replace_popup();
 }
 
+// 主菜单按钮回调：根据点击项切换 APP 运行模式
 static void main_menu_btn_cb(lv_event_t * e) {
     intptr_t action = (intptr_t)lv_event_get_user_data(e);
     if(action == 1) { // 自由演奏
@@ -1914,16 +1988,19 @@ static void main_menu_btn_cb(lv_event_t * e) {
     }
 }
 
+// 歌曲点击后的回调：延时播放选中的曲目
 static void song_start_cb(lv_event_t * e) {
     const char * filename = (const char *)lv_event_get_user_data(e);
     if(filename) lv_timer_create(delayed_song_start_cb, 500, strdup(filename));
 }
 
+// 选歌界面返回大厅按钮的回调
 static void song_back_cb(lv_event_t * e) {
     if(song_sel_win) { lv_obj_delete(song_sel_win); song_sel_win = NULL; }
     create_main_menu_ui();
 }
 
+// 结算页面按钮回调：处理“再来一次”、“换歌”或“回主页”
 static void guided_finish_action_cb(lv_event_t * e) {
     intptr_t action = (intptr_t)lv_event_get_user_data(e);
 
@@ -1942,6 +2019,7 @@ static void guided_finish_action_cb(lv_event_t * e) {
     }
 }
 
+// 重新开始当前曲目的跟弹学习
 static void restart_guided_song(void) {
     current_app_mode = 1;
     game_score = 0;
@@ -1970,6 +2048,7 @@ static void guided_finish_close_cb(lv_event_t * e) {
     close_guided_finish_popup();
 }
 
+// 显示跟弹练习完成后的结算结算页面
 static void show_guided_finish_popup(void) {
     if(guided_finish_popup) return;
 
@@ -1988,6 +2067,7 @@ static void show_guided_finish_popup(void) {
     lv_obj_set_style_text_color(summary, lv_color_hex(COLOR_SUBTITLE), 0);
     lv_obj_align(summary, LV_ALIGN_TOP_MID, 0, 62);
 
+    // 弹窗右上角的关闭按钮
     lv_obj_t * btn_close = lv_button_create(guided_finish_popup);
     lv_obj_set_size(btn_close, 32, 32);
     lv_obj_align(btn_close, LV_ALIGN_TOP_RIGHT, 18, -18);
@@ -2004,6 +2084,7 @@ static void show_guided_finish_popup(void) {
     lv_obj_set_style_text_color(lbl_close, lv_color_hex(0x7F1D1D), 0);
     lv_obj_center(lbl_close);
 
+    // 重新开始按钮
     lv_obj_t * btn_retry = lv_button_create(guided_finish_popup);
     lv_obj_set_size(btn_retry, 180, 44);
     lv_obj_align(btn_retry, LV_ALIGN_TOP_MID, 0, 112);
@@ -2016,6 +2097,7 @@ static void show_guided_finish_popup(void) {
     lv_obj_set_style_text_color(lbl_retry, lv_color_hex(COLOR_SUBTITLE), 0);
     lv_obj_center(lbl_retry);
 
+    // 重新选歌按钮
     lv_obj_t * btn_choose = lv_button_create(guided_finish_popup);
     lv_obj_set_size(btn_choose, 180, 44);
     lv_obj_align(btn_choose, LV_ALIGN_TOP_MID, 0, 166);
@@ -2028,6 +2110,7 @@ static void show_guided_finish_popup(void) {
     lv_obj_set_style_text_color(lbl_choose, lv_color_hex(COLOR_SUBTITLE), 0);
     lv_obj_center(lbl_choose);
 
+    // 回到主厅按钮
     lv_obj_t * btn_back = lv_button_create(guided_finish_popup);
     lv_obj_set_size(btn_back, 180, 44);
     lv_obj_align(btn_back, LV_ALIGN_TOP_MID, 0, 220);
@@ -2041,6 +2124,7 @@ static void show_guided_finish_popup(void) {
     lv_obj_center(lbl_back);
 }
 
+// 关闭自动演奏结算弹窗
 static void close_auto_finish_popup(void) {
     if(auto_finish_popup) {
         lv_obj_delete(auto_finish_popup);
@@ -2052,11 +2136,13 @@ static void close_auto_finish_popup(void) {
     }
 }
 
+// 自动演奏结算页面关闭按钮回调
 static void auto_finish_close_cb(lv_event_t * e) {
     LV_UNUSED(e);
     close_auto_finish_popup();
 }
 
+// 自动演奏结算页面按钮回调：处理“再来一次”、“重选”或“回主页”
 static void auto_finish_action_cb(lv_event_t * e) {
     intptr_t action = (intptr_t)lv_event_get_user_data(e);
 
@@ -2076,6 +2162,7 @@ static void auto_finish_action_cb(lv_event_t * e) {
     }
 }
 
+// 重新开始当前加载段落的自动演奏
 static void restart_auto_play_current(void) {
     if(current_auto_record_name[0] == '\0') {
         create_record_selection_ui();
@@ -2158,6 +2245,7 @@ static void show_auto_finish_popup(void) {
     lv_obj_center(lbl_back);
 }
 
+// 创建并显示歌曲选择列表界面（跟弹模式入口）
 void create_song_selection_ui(void) {
     song_sel_win = lv_obj_create(lv_screen_active());
     lv_obj_set_size(song_sel_win, 800, 480);
@@ -2181,6 +2269,7 @@ void create_song_selection_ui(void) {
     lv_obj_set_size(list, 500, 300);
     lv_obj_center(list);
 
+    // 扫描 music 目录下的 .wav 文件作为歌曲源
     DIR *d;
     struct dirent *dir;
     d = opendir("music");
@@ -2188,6 +2277,7 @@ void create_song_selection_ui(void) {
         while ((dir = readdir(d)) != NULL) {
             if (strstr(dir->d_name, ".wav")) {
                 if(is_guided_song_hidden(dir->d_name)) continue;
+                // 在预设曲库中寻找友好的显示标题
                 const SongRegistry * match = NULL;
                 for(int i=0; song_db[i].filename != NULL; i++) {
                     if(strcmp(song_db[i].filename, dir->d_name) == 0) {
@@ -2211,12 +2301,14 @@ void create_song_selection_ui(void) {
     }
 }
 
+// 创建并显示主菜单界面：应用的核心导航中心
 void create_main_menu_ui(void) {
     main_menu_win = lv_obj_create(lv_screen_active());
     lv_obj_set_size(main_menu_win, 800, 480);
     lv_obj_center(main_menu_win);
     apply_page_bg(main_menu_win);
     main_menu_secret_tap_count = 0;
+    // 监听秘密连点击事件以便开启隐藏功能
     lv_obj_add_event_cb(main_menu_win, main_menu_secret_cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t * title = lv_label_create(main_menu_win);
@@ -2224,6 +2316,7 @@ void create_main_menu_ui(void) {
     apply_title_visual(title, lv_color_hex(COLOR_TITLE));
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
 
+    // 音量调节悬浮控制
     {
         lv_obj_t * vol_btn = lv_button_create(main_menu_win);
         lv_obj_set_size(vol_btn, 80, 80);
@@ -2272,6 +2365,7 @@ void create_main_menu_ui(void) {
         update_volume_icon_state();
     }
 
+    // 退出登录按钮
     lv_obj_t * btn_logout = lv_button_create(main_menu_win);
     lv_obj_set_size(btn_logout, 120, 40);
     lv_obj_align(btn_logout, LV_ALIGN_TOP_LEFT, 20, 20);
@@ -2285,7 +2379,7 @@ void create_main_menu_ui(void) {
     lv_obj_set_style_text_color(lbl_out, lv_color_hex(0x7a2130), 0);
     lv_obj_center(lbl_out);
 
-    // 2x2 Grid Buttons (拆分 Icon 和 文字，防止中文字库缺少矢量符号导致不显示)
+    // 四大核心功能按钮网关
     const char * icons[4] = { LV_SYMBOL_AUDIO, LV_SYMBOL_EDIT, LV_SYMBOL_PLAY, LV_SYMBOL_SAVE };
     const char * texts[4] = { "自由演奏", "跟弹学习", "自动演奏", "录制演奏" };
     int coords[4][2] = { {-110, -50}, {110, -50}, {-110, 70}, {110, 70} };
@@ -2305,16 +2399,16 @@ void create_main_menu_ui(void) {
         lv_label_set_text(lbl_icon, icons[i]);
         lv_obj_set_style_text_font(lbl_icon, lv_theme_get_font_normal(NULL), 0);
         lv_obj_set_style_text_color(lbl_icon, lv_color_hex(0x1c4f7a), 0);
-        // 不绑定中文字库，系统默认自带的英文字库完美包含这些 LV_SYMBOL 矢量符号
         lv_obj_align(lbl_icon, LV_ALIGN_CENTER, 0, -15);
         
         lv_obj_t * lbl_text = lv_label_create(btn);
         lv_label_set_text(lbl_text, texts[i]);
-        lv_obj_set_style_text_font(lbl_text, &my_font_full, 0); // 中文强行挂载字库
+        lv_obj_set_style_text_font(lbl_text, &my_font_full, 0);
         lv_obj_set_style_text_color(lbl_text, lv_color_hex(0x1f4f55), 0);
         lv_obj_align(lbl_text, LV_ALIGN_CENTER, 0, 15);
     }
 
+    // 后台管理系统的隐藏入口（汉堡菜单图标）
     lv_obj_t * btn_manage = lv_button_create(main_menu_win);
     lv_obj_set_size(btn_manage, 46, 46);
     lv_obj_align(btn_manage, LV_ALIGN_BOTTOM_RIGHT, -20, -20);
@@ -2336,6 +2430,7 @@ void create_main_menu_ui(void) {
     }
 }
 
+// 创建并显示钢琴主界面：核心琴键布局、音量控制和各模式特定 UI 元素
 void create_piano_ui(void) {
     memset(piano_keys, 0, sizeof(piano_keys));
     memset(key_is_playing, 0, sizeof(key_is_playing));
@@ -2362,6 +2457,7 @@ void create_piano_ui(void) {
     lv_obj_set_style_text_color(lbl_back, lv_color_hex(0x1f4f55), 0);
     lv_obj_center(lbl_back);
 
+    // 录制模式专用的切换按钮
     if(current_app_mode == 3) {
         btn_record_toggle = lv_button_create(scr);
         lv_obj_set_size(btn_record_toggle, 160, 50);
@@ -2380,14 +2476,16 @@ void create_piano_ui(void) {
         is_recording = 0;
         update_record_toggle_button();
     } else if(current_app_mode == 2) {
+        // 自动演奏模式的状态提示
         lbl_auto_status = lv_label_create(scr);
         lv_label_set_text(lbl_auto_status, "演奏中");
         lv_obj_set_style_text_font(lbl_auto_status, &my_font_full, 0);
         lv_obj_set_style_text_color(lbl_auto_status, lv_color_hex(COLOR_SUBTITLE), 0);
+        lbl_auto_status->id = (void *)0x1234; // 标记 ID
         lv_obj_align(lbl_auto_status, LV_ALIGN_TOP_MID, 0, 72);
     }
 
-    // Title label
+    // 设置页面标题
     lv_obj_t * title = lv_label_create(scr);
     if(current_app_mode == 1) {
         lv_label_set_text(title, current_song_title);
@@ -2400,24 +2498,24 @@ void create_piano_ui(void) {
     else if(current_app_mode == 2) set_page_title(title, PAGE_TITLE_AUTO_PLAY);
     else if(current_app_mode == 3) set_page_title(title, PAGE_TITLE_RECORD);
     else set_page_title(title, PAGE_TITLE_FREE_PLAY);
-    lv_obj_set_style_text_color(title, lv_color_hex(COLOR_TITLE), 0); // 深色标题保证薄荷背景可读性
+    lv_obj_set_style_text_color(title, lv_color_hex(COLOR_TITLE), 0);
     lv_obj_set_style_text_font(title, &my_font_full, 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
 
-    // Volume Control Button (巨大点击热区，解决物理屏点不准的问题)
+    // 音量调节热区按钮
     lv_obj_t * vol_btn = lv_button_create(scr);
     lv_obj_set_size(vol_btn, 80, 80);
     lv_obj_align(vol_btn, LV_ALIGN_TOP_RIGHT, -10, 10);
-    lv_obj_set_style_bg_opa(vol_btn, 0, 0); // 完全透明，不破坏清新背景
-    lv_obj_set_style_border_width(vol_btn, 0, 0); // 去除边框
-    lv_obj_set_style_shadow_width(vol_btn, 0, 0); // 去除阴影
+    lv_obj_set_style_bg_opa(vol_btn, 0, 0);
+    lv_obj_set_style_border_width(vol_btn, 0, 0);
+    lv_obj_set_style_shadow_width(vol_btn, 0, 0);
     lv_obj_add_event_cb(vol_btn, vol_icon_event_cb, LV_EVENT_CLICKED, NULL);
 
     vol_icon = lv_label_create(vol_btn);
     lv_label_set_text(vol_icon, LV_SYMBOL_VOLUME_MAX);
-    lv_obj_set_style_text_color(vol_icon, lv_color_hex(0x2c3e50), 0); // 深绿色/深灰图标
-    lv_obj_set_style_text_font(vol_icon, lv_theme_get_font_normal(NULL), 0); // 确保符号正常渲染
-    lv_obj_center(vol_icon); // 居中在大按钮内部
+    lv_obj_set_style_text_color(vol_icon, lv_color_hex(0x2c3e50), 0);
+    lv_obj_set_style_text_font(vol_icon, lv_theme_get_font_normal(NULL), 0);
+    lv_obj_center(vol_icon);
 
     vol_panel = lv_obj_create(scr);
     lv_obj_set_size(vol_panel, 170, current_app_mode == 1 ? 106 : 62);
@@ -2448,7 +2546,7 @@ void create_piano_ui(void) {
     lv_obj_add_event_cb(vol_slider_piano, vol_slider_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     vol_slider_bgm = NULL;
-    if(current_app_mode == 1) {
+    if(current_app_mode == 1) { // 跟弹模式额外显示伴奏音量条
         lv_obj_t * lbl_bgm = lv_label_create(vol_panel);
         lv_label_set_text(lbl_bgm, "伴奏");
         lv_obj_set_style_text_font(lbl_bgm, &my_font_full, 0);
@@ -2551,23 +2649,22 @@ void create_piano_ui(void) {
         lv_obj_move_foreground(vol_panel);
     }
 
-    // Piano container
+    // 钢琴琴键容器布局
     lv_obj_t * piano_container = lv_obj_create(scr);
-    lv_obj_set_size(piano_container, 800, 208); // 满宽 800
-    lv_obj_align(piano_container, LV_ALIGN_BOTTOM_MID, 0, 0); // 贴底
-    lv_obj_set_style_bg_color(piano_container, lv_color_hex(0x111111), 0); // 深入黑色的背景顶栏
-    lv_obj_set_style_border_width(piano_container, 0, 0); // 去除边缘边框，彻底释放 800 像素
-    lv_obj_set_style_radius(piano_container, 0, 0); // 去除边缘圆角，彻底填平左右两端顶部的缺口
-    lv_obj_set_style_pad_all(piano_container, 0, 0); // 覆盖内边距
+    lv_obj_set_size(piano_container, 800, 208);
+    lv_obj_align(piano_container, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(piano_container, lv_color_hex(0x111111), 0);
+    lv_obj_set_style_border_width(piano_container, 0, 0);
+    lv_obj_set_style_radius(piano_container, 0, 0);
+    lv_obj_set_style_pad_all(piano_container, 0, 0);
     lv_obj_remove_flag(piano_container, LV_OBJ_FLAG_SCROLLABLE);
     
-    // 【核心改造】：抛弃不稳定的系统事件系统，使用后台极速轮询监听所有 5 个落点，无缝跨越任意琴键和多点触发。
-    // 这将立刻解决“不回弹”以及“多点触控失灵”的问题。
+    // 初始化扫描定时器，监听物理接触
     piano_timer = lv_timer_create(piano_scan_timer_cb, 10, NULL);
     
-    // We will create basic white and black keys layout
+    // 琴键尺寸设定
     const int white_keys_count = 10;
-    const int white_key_w = 80; // 绝对铺满 800 像素宽屏 (80 * 10 = 800)
+    const int white_key_w = 80;
     const int white_key_h = 190; 
     const int black_key_w = 46; 
     const int black_key_h = 108; 
@@ -2575,23 +2672,24 @@ void create_piano_ui(void) {
     const char * white_key_names_arr[] = {"C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5", "D5", "E5"};
     const char * black_key_names_arr[] = {"C4#", "D4#", "", "F4#", "G4#", "A4#", "", "C5#", "D5#", ""};
     
-    // First, draw all white keys
+    // 第一步：绘制所有白键
     for(int i = 0; i < white_keys_count; i++) {
         lv_obj_t * btn = lv_button_create(piano_container);
         piano_keys[i] = btn; piano_key_names[i] = white_key_names_arr[i];
         
-        lv_obj_set_size(btn, white_key_w - 4, white_key_h); // 维持 4 像素缝隙 (占去 76)
-        lv_obj_set_pos(btn, i * white_key_w + 2, 6); // 头尾正好均衡留白 2 像素
+        lv_obj_set_size(btn, white_key_w - 4, white_key_h);
+        lv_obj_set_pos(btn, i * white_key_w + 2, 6);
         lv_obj_set_style_bg_color(btn, lv_color_white(), 0);
-        lv_obj_set_style_bg_color(btn, lv_color_hex(0xcccccc), LV_STATE_PRESSED); // light gray on press
+        lv_obj_set_style_bg_color(btn, lv_color_hex(0xcccccc), LV_STATE_PRESSED);
         lv_obj_set_style_radius(btn, 4, 0);
         lv_obj_set_style_shadow_width(btn, 0, 0);
         
-        // 关键：去掉子键的 Clickable，避免截胡容器事件
+        // 禁止按钮自身的点击处理（由容器的 Timer 统一接管扫描）
         lv_obj_remove_flag(btn, LV_OBJ_FLAG_CLICKABLE);
 
         lv_obj_t * label = lv_label_create(btn);
         const char * display_name = white_key_names_arr[i];
+        // 如果该键被隐藏功能替换了音色，显示新名称（去掉 .wav）
         if(hidden_key_audio_paths[i][0] != '\0') {
             display_name = hidden_key_audio_paths[i];
             char clean_name[128];
@@ -2607,7 +2705,7 @@ void create_piano_ui(void) {
         lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -10);
     }
     
-    // Second, draw black keys on top
+    // 第二步：在白键之上层级绘制黑键
     for(int i = 0; i < white_keys_count - 1; i++) {
         if(strlen(black_key_names_arr[i]) > 0) {
             int k = 10 + i;
@@ -2615,7 +2713,7 @@ void create_piano_ui(void) {
             piano_keys[k] = btn; piano_key_names[k] = black_key_names_arr[i];
             
             lv_obj_set_size(btn, black_key_w, black_key_h);
-            lv_obj_set_pos(btn, i * white_key_w + 57, 6); // 绝对精准的中缝坐标 (i*80 + 80 - 23)
+            lv_obj_set_pos(btn, i * white_key_w + 57, 6);
             lv_obj_set_style_bg_color(btn, lv_color_black(), 0);
             lv_obj_set_style_bg_color(btn, lv_color_hex(0x333333), LV_STATE_PRESSED);
             lv_obj_set_style_radius(btn, 4, 0);
@@ -2625,6 +2723,7 @@ void create_piano_ui(void) {
 
             lv_obj_t * label = lv_label_create(btn);
             const char * display_name = black_key_names_arr[i];
+            // 黑键同样支持音色替换显示
             if(hidden_key_audio_paths[k][0] != '\0') {
                 display_name = hidden_key_audio_paths[k];
                 char clean_name[128];
@@ -2641,25 +2740,28 @@ void create_piano_ui(void) {
         }
     }
     
-    // 初始化无损硬件层混音引擎 (仅执行一次，加载所有 WAV 数据入内存)
+    // 初始化无损硬件层混音引擎并加载初始音色
     platform_audio_init(piano_key_names, 19);
 }
 
+// 自动演奏定时器回调：按时读取录音数据并驱动琴键按下动画与声音
 static void auto_play_timer_cb(lv_timer_t * t) {
     uint32_t current_tick = lv_tick_get();
     uint32_t dt = 0;
 
     LV_UNUSED(t);
+    // 尚未到达启动时间
     if(current_tick < auto_play_start_tick) {
         return;
     }
     dt = current_tick - auto_play_start_tick;
     
+    // 1. 读取录制缓冲区：按时间戳顺序按下琴键
     while(playback_buffer[auto_play_idx].key_idx != -1) {
         if(dt >= playback_buffer[auto_play_idx].hit_time_ms) {
             int k = playback_buffer[auto_play_idx].key_idx;
-            lv_obj_add_state(piano_keys[k], LV_STATE_PRESSED);
-            platform_audio_play_key(k);
+            lv_obj_add_state(piano_keys[k], LV_STATE_PRESSED); // 视觉点亮
+            platform_audio_play_key(k); // 发声
             auto_play_release_tick[k] = current_tick + 150; // 动画残影表现释放延迟 150ms
             auto_play_idx++;
         } else {
@@ -2667,7 +2769,7 @@ static void auto_play_timer_cb(lv_timer_t * t) {
         }
     }
     
-    // 执行幽灵键自动松开消散
+    // 2. 幽灵键自动解散：按时间到期恢复弹起状态
     for(int k=0; k<19; k++) {
         if(auto_play_release_tick[k] && current_tick >= auto_play_release_tick[k]) {
             if(piano_keys[k]) lv_obj_remove_state(piano_keys[k], LV_STATE_PRESSED);
@@ -2675,6 +2777,7 @@ static void auto_play_timer_cb(lv_timer_t * t) {
         }
     }
 
+    // 3. 结束判定：所有音符播放完毕且所有琴键均已弹起
     if(playback_buffer[auto_play_idx].key_idx == -1) {
         int has_pending_release = 0;
         for(int k = 0; k < 19; k++) {
@@ -2700,15 +2803,16 @@ static void auto_play_timer_cb(lv_timer_t * t) {
 static lv_obj_t * naming_win = NULL;
 static lv_obj_t * naming_ta = NULL;
 
+// 保存录音按钮的回调：从文本框读取名称并写入 .rec 文件
 static void save_record_cb(lv_event_t * e) {
     const char * name = lv_textarea_get_text(naming_ta);
     if(strlen(name) > 0) {
-        mkdir("records", 0777); // Ensure directory exists safely
+        mkdir("records", 0777); // 确保 records 目录存在
         char path[128];
         snprintf(path, sizeof(path), "records/%s.rec", name);
         FILE *f = fopen(path, "wb");
         if(f) {
-            recorded_buffer[record_note_count].key_idx = -1; // 写入终止结束帧封口
+            recorded_buffer[record_note_count].key_idx = -1; // 写入终止帧
             recorded_buffer[record_note_count].hit_time_ms = 0;
             fwrite(recorded_buffer, sizeof(SongNote), record_note_count + 1, f);
             fclose(f);
@@ -2718,6 +2822,7 @@ static void save_record_cb(lv_event_t * e) {
     create_main_menu_ui();
 }
 
+// 创建并显示录音命名界面：包含文本框和全键盘
 static void create_naming_ui(void) {
     naming_win = lv_obj_create(lv_screen_active());
     lv_obj_set_size(naming_win, 800, 480);
@@ -2738,10 +2843,11 @@ static void create_naming_ui(void) {
     
     lv_obj_t * kb = lv_keyboard_create(naming_win);
     lv_keyboard_set_textarea(kb, naming_ta);
-    lv_obj_add_event_cb(kb, save_record_cb, LV_EVENT_READY, NULL); // 点击右下角的打勾或确认保存
+    lv_obj_add_event_cb(kb, save_record_cb, LV_EVENT_READY, NULL); // 点击打勾保存
     lv_obj_add_event_cb(kb, save_record_cb, LV_EVENT_CANCEL, NULL);
 }
 
+// 停止录音并进入命名保存界面
 static void stop_recording_cb(lv_event_t * e) {
     LV_UNUSED(e);
     is_recording = 0;
@@ -2753,6 +2859,7 @@ static void stop_recording_cb(lv_event_t * e) {
     create_naming_ui();
 }
 
+// 录音开关按钮的回调：切换录制和停止状态
 static void record_toggle_cb(lv_event_t * e) {
     if(is_recording) {
         stop_recording_cb(e);
@@ -2766,6 +2873,7 @@ static void record_toggle_cb(lv_event_t * e) {
     update_record_toggle_button();
 }
 
+// 从指定的 .rec 文件启动自动演奏模式
 static void start_auto_play_from_record(const char * filename) {
     memset(playback_buffer, 0, sizeof(playback_buffer));
     playback_buffer[0].key_idx = -1;
@@ -2780,16 +2888,11 @@ static void start_auto_play_from_record(const char * filename) {
         FILE *f = fopen(path, "rb");
         if(f) {
             size_t read_count = fread(playback_buffer, sizeof(SongNote), MAX_RECORD_NOTES, f);
-            if(read_count == 0) {
-                playback_buffer[0].key_idx = -1;
-            } else if(read_count < MAX_RECORD_NOTES) {
-                playback_buffer[read_count].key_idx = -1;
-                playback_buffer[read_count].hit_time_ms = 0;
+            if(read_count == 0 || read_count >= MAX_RECORD_NOTES) {
+                playback_buffer[read_count < MAX_RECORD_NOTES ? read_count : MAX_RECORD_NOTES - 1].key_idx = -1;
             } else {
-                playback_buffer[MAX_RECORD_NOTES - 1].key_idx = -1;
-                playback_buffer[MAX_RECORD_NOTES - 1].hit_time_ms = 0;
+                playback_buffer[read_count].key_idx = -1;
             }
-            (void)read_count;
             fclose(f);
         }
     }
@@ -2798,7 +2901,7 @@ static void start_auto_play_from_record(const char * filename) {
     create_piano_ui();
     
     auto_play_idx = 0;
-    auto_play_start_tick = lv_tick_get() + 800; // 延时 800 毫秒后幽灵之手开始发力
+    auto_play_start_tick = lv_tick_get() + 800; // 延时 800 毫秒后自动开始
     memset(auto_play_release_tick, 0, sizeof(auto_play_release_tick));
     auto_play_timer = lv_timer_create(auto_play_timer_cb, 20, NULL);
 }
@@ -2808,6 +2911,7 @@ static void auto_play_start_cb(lv_event_t * e) {
     if(filename) lv_timer_create(delayed_auto_play_start_cb, 500, strdup(filename));
 }
 
+// 创建并显示录音作品选择界面（自动演奏入口）
 static void create_record_selection_ui(void) {
     song_sel_win = lv_obj_create(lv_screen_active());
     lv_obj_set_size(song_sel_win, 800, 480);
@@ -2829,6 +2933,7 @@ static void create_record_selection_ui(void) {
     lv_obj_set_size(list, 500, 300);
     lv_obj_center(list);
 
+    // 扫描 records 目录下的 .rec 文件
     DIR *d = opendir("records");
     if (d) {
         struct dirent *dir;
@@ -2846,62 +2951,28 @@ static void create_record_selection_ui(void) {
     }
 }
 
+// 应用程序入口点：系统初始化、音频加载、页面进入及主事件循环
 int main(void) {
     srand((unsigned int)time(NULL));
+    // 基础硬件层初始化（LCD、触摸屏等）
     if(platform_init() != 0) {
         return -1;
     }
+    // 音频引擎初始化（加载初始 WAV 到内存）
     platform_audio_init(default_key_names, 19);
+    // 应用初始混音音量
     platform_audio_set_mix_volumes(piano_mix_volume, bgm_mix_volume);
+    // 加载后台管理系统状态
     load_manage_state();
-#if 0
-    // 1. Display & Input Setup
-#if APP_TARGET_PC
-    printf("[Info] Starting PC simulator at %dx%d\n", SCR_W, SCR_H);
-#else
-    int fd = open("/dev/fb0", O_RDWR); 
-    if(fd == -1) {
-        perror("[Error] fb0 setup failed");
-        return -1;
-    }
-    fb_map = (uint32_t *)mmap(NULL, SCR_W*SCR_H*4, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-    ts_fd = open("/dev/input/event0", O_RDONLY | O_NONBLOCK);
-    
-    // 2. Play Boot Animation
-    // blocking call
-    printf("[Info] Playing startup animation: movie/boluo.avi\n");
-    // 开发板 CPU 性能有限，取消 -zoom -x 800 -y 480（极耗CPU的软件缩放），并加上 -framedrop 允许必要时掉帧保障播放不卡死
-    system("mplayer -slave -quiet -geometry 0:0 -framedrop movie/boluo.avi");
-    // ================================================
-#endif
 
-    // 3. LVGL Init
-    lv_init();
-
-#if APP_TARGET_PC
-    lv_display_t * disp = lv_sdl_window_create(SCR_W, SCR_H);
-    if(disp == NULL) {
-        fprintf(stderr, "[Error] SDL display setup failed\n");
-        return -1;
-    }
-#else
-    lv_display_t * disp = lv_display_create(SCR_W, SCR_H);
-    lv_display_set_flush_cb(disp, my_flush_cb);
-    lv_display_set_buffers(disp, disp_buf, NULL, sizeof(disp_buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
-#endif
-
-    lv_indev_t * indev = lv_indev_create();
-    lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
-    lv_indev_set_read_cb(indev, my_touch_read_cb);
-#endif
-
+    // 进入起始页面：登录界面
     create_login_ui();
     
-    // 5. System Tick Thread
+    // 开启 LVGL 滴答（Tick）线程
     pthread_t tid; 
     pthread_create(&tid, NULL, tick_thread, NULL);
     
-    // 6. Main LVGL Event Loop
+    // LVGL 主事件处理循环：每 5ms 处理一次 Timer 和输入事件
     while(1) { 
         lv_timer_handler(); 
         usleep(5000); // 5ms sleep
