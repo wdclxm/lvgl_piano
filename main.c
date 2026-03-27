@@ -1,4 +1,4 @@
-﻿#include "lvgl/lvgl.h"
+#include "lvgl/lvgl.h"
 #include "platform.h"
 #include <unistd.h>
 #include <stdio.h>
@@ -1872,6 +1872,20 @@ static void hidden_audio_assign_cb(lv_event_t * e) {
         snprintf(text, sizeof(text), "当前琴键 %s 已替换为 %s", piano_key_names[key_idx], filename);
         lv_label_set_text(lbl_hidden_status, text);
     }
+
+    // Immediately update the label on the piano key
+    if(piano_keys[key_idx]) {
+        lv_obj_t * label = lv_obj_get_child(piano_keys[key_idx], 0);
+        if(label) {
+            char clean_name[128];
+            snprintf(clean_name, sizeof(clean_name), "%s", filename);
+            char * dot = strstr(clean_name, ".wav");
+            if(dot) *dot = '\0';
+            lv_label_set_text(label, clean_name);
+            lv_obj_set_style_text_font(label, &my_font_full, 0);
+        }
+    }
+
     platform_audio_play_key(key_idx);
     close_hidden_replace_popup();
 }
@@ -2577,8 +2591,19 @@ void create_piano_ui(void) {
         lv_obj_remove_flag(btn, LV_OBJ_FLAG_CLICKABLE);
 
         lv_obj_t * label = lv_label_create(btn);
-        lv_label_set_text(label, white_key_names_arr[i]);
+        const char * display_name = white_key_names_arr[i];
+        if(hidden_key_audio_paths[i][0] != '\0') {
+            display_name = hidden_key_audio_paths[i];
+            char clean_name[128];
+            snprintf(clean_name, sizeof(clean_name), "%s", display_name);
+            char * dot = strstr(clean_name, ".wav");
+            if(dot) *dot = '\0';
+            lv_label_set_text(label, clean_name);
+        } else {
+            lv_label_set_text(label, display_name);
+        }
         lv_obj_set_style_text_color(label, lv_color_black(), 0);
+        lv_obj_set_style_text_font(label, &my_font_full, 0);
         lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -10);
     }
     
@@ -2597,6 +2622,22 @@ void create_piano_ui(void) {
             lv_obj_set_style_shadow_width(btn, 0, 0);
             
             lv_obj_remove_flag(btn, LV_OBJ_FLAG_CLICKABLE);
+
+            lv_obj_t * label = lv_label_create(btn);
+            const char * display_name = black_key_names_arr[i];
+            if(hidden_key_audio_paths[k][0] != '\0') {
+                display_name = hidden_key_audio_paths[k];
+                char clean_name[128];
+                snprintf(clean_name, sizeof(clean_name), "%s", display_name);
+                char * dot = strstr(clean_name, ".wav");
+                if(dot) *dot = '\0';
+                lv_label_set_text(label, clean_name);
+            } else {
+                lv_label_set_text(label, display_name);
+            }
+            lv_obj_set_style_text_color(label, lv_color_white(), 0);
+            lv_obj_set_style_text_font(label, &my_font_full, 0);
+            lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -10);
         }
     }
     
